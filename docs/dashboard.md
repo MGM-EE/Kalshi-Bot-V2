@@ -1,10 +1,24 @@
 # Dashboard and settings
 
+The **What's happening?** panel explains six separate facts in plain English:
+the browser-to-app connection, Kalshi API access, selected-asset data feeds,
+paper-bot controls, local account storage and optional full market recording.
+**APP CONNECTED** only means the dashboard has recent backend updates. Market
+data can still be missing or stale, and new automatic buys may be paused.
+**Backup updates** means the browser is using `/api/state` while restoring the
+WebSocket stream; it does not bypass any backend freshness or execution checks.
+An interrupted dashboard does not pause the backend. After five seconds without
+a successfully displayed update the page marks values stale. A stream silence
+gets fifteen seconds to recover, with HTTP backup in the meantime; an initial
+handshake gets thirty seconds. Display failures are visible and logged, rather
+than silently reconnecting. The troubleshooting button excludes credentials,
+signing paths, headers and account balances.
+
 Start the local app and open its loopback URL. The sticky decision strip is 160px
 at a 1440px desktop width, with bounded scrolling for narrower layouts. Select an
 asset and YES/NO outcome; the verified UP/DOWN mapping is displayed separately.
-LIVE DATA — PAPER TRADING means at least one external channel is live. Each source
-has its own status; this label does not imply full trading readiness. PAUSED means
+The backend's LIVE DATA — PAPER TRADING mode means at least one external channel
+is live. Each source has its own status; this mode does not imply full trading readiness. PAUSED means
 new automatic entries are paused. Pinned protective exits continue.
 
 Entry tiles show configured signal rules and hard time/price/spread/depth gates.

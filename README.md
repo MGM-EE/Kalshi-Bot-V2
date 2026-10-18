@@ -9,6 +9,12 @@ No real-money order transport or mock runtime feed exists.
 
 ## Run
 
+**Windows recovery / first-time setup:** follow the [simple Windows guide](docs/windows_quick_start.md).
+Extract the download to a permanent folder, open **START_HERE.bat**, connect your
+key with **CONNECT_KALSHI.bat**, then open **OPEN_TERMINAL.bat** or the desktop icon.
+The dashboard's **What's happening?** panel explains connection, data, paper-bot
+and recording status. Do not delete an existing `data` folder when updating.
+
 Windows, with Python 3.12 and Node.js 22+ installed:
 
 ```powershell
@@ -28,6 +34,10 @@ npm run build
 The Windows launcher opens the local dashboard; close it with Ctrl+C in the
 launcher console. Setup must run first. Windows scripts are provided but have
 not been executed on Windows in this Linux environment.
+If the terminal is already running, opening its launcher again opens the existing
+dashboard. Live-update interruptions use a read-only HTTP backup; fresh dashboard
+updates and fresh exchange data are reported separately. A browser disconnect
+does not pause the backend or change its saved strategy controls.
 
 Public Kalshi REST discovery/books/trades and Kraken WebSocket v2 need no keys.
 For Windows-local setup, use [the credential helper](docs/local_credentials.md):

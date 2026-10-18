@@ -7,6 +7,32 @@ Manual paper execution is available; real-money order submission is absent.
 The user has authorized the remaining build phases, one at a time with focused
 checks, status updates, and separate commits.
 
+## Windows recovery and plain-language status checkpoint
+
+- Added a six-card **What's happening?** panel: app connection, local API setup,
+  required price feeds, paper-bot activity, saved accounts and optional recording.
+  Fresh backend updates no longer appear disconnected merely because market
+  feeds are missing. Troubleshooting export excludes credentials and balances.
+- Short stream gaps use read-only HTTP backup with response-order protection.
+  Stale/display-error states remain explicit; dead sockets receive bounded
+  retries. Server sessions consume disconnect events and expose snapshot errors.
+- Added root `START_HERE`, `CONNECT_KALSHI`, `OPEN_TERMINAL` and
+  `RECORD_PAPER_SESSION` batch launchers, automatic desktop shortcut creation,
+  clear prerequisite/failure messages and safe repeated-open behavior.
+- Added [Windows recovery guide](docs/windows_quick_start.md). Existing external
+  Windows credentials may survive folder deletion; deleted local trade history
+  requires a backup. Setup preserves existing accounts and credential stores.
+- Validation: **135 Python tests passed; one Windows-only skipped**; lint and
+  TypeScript build passed. Chromium connection, status/privacy/mobile and full
+  dashboard/replay checks passed. A 47-second live-feed check used one socket,
+  recovered from an intentionally withheld 8.5-second stream interval via two
+  backup requests, and reported zero browser errors.
+- Remaining: actual Windows install/shortcut/DPAPI and authenticated Kalshi/CF
+  acceptance on the user's PC. Original Windows reset cause remains unproven;
+  connection recovery and diagnostics address observed failure behavior.
+  Next: download the recovery branch, install outside OneDrive, reconnect the
+  existing key and inspect the status cards before enabling paper entries.
+
 ## Post-build hardening checkpoint
 
 - Dashboard connection follow-up: initial connection gets 30 seconds; after frames

@@ -13,7 +13,7 @@ const assert=require('node:assert/strict');
  const snapshot=await (await page.request.get(base+'/api/state')).json();
  snapshot.mode='LIVE DATA — PAPER TRADING';snapshot.timestamp=Date.now()/1000;
  snapshot.paper.fills=[];socket.send(JSON.stringify(snapshot));
- await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('LIVE DATA'));
+ await page.waitForFunction(()=>document.getElementById('connection').textContent.includes('APP CONNECTED'));
  const height=await page.locator('#decision-strip').evaluate(n=>n.getBoundingClientRect().height);
  assert(height>=160&&height<=220,`desktop strip height ${height}`);
  // A qualifying signal cannot produce a flash. Historical fills on initial load cannot flash.

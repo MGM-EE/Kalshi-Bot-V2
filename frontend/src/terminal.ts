@@ -54,7 +54,6 @@ export function renderTerminal(data:Wire) {
   const flow=indicators.kraken_whale_flow,kalshi=indicators.kalshi_whale_flow;
   const seconds=60, sf=flow?.windows?.[seconds]??{},cf=kalshi?.windows?.[seconds]??{};
   const remaining=market?Math.max(0,Math.ceil(market.close_time-data.timestamp)):null;
-  show("connection",`${data.mode} · ${data.strategy?.control.emergency?"EMERGENCY":data.execution_enabled?"ENTRIES ENABLED":"ENTRIES PAUSED"}`);
   show("strip-clock",remaining===null?"No round":`${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,"0")} LEFT`);
   const book=item?.kalshi.book, direction=market?.outcome_mapping?.[outcome]??"Unverified";
   const sourceNames=[`kalshi:${asset}:book`,`kraken:${asset}:trade`,`kalshi:${asset}:reference`];

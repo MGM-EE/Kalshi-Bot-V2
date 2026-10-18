@@ -1,6 +1,7 @@
 """Local launcher; Ctrl+C terminates only the backend started by this process."""
 
 import argparse
+import json
 import os
 import re
 import signal
@@ -30,7 +31,7 @@ def main():
             parser.error("Choose a new session name; existing recordings/accounts are preserved")
         child_env.update(RECORDING_PATH=str(recording), PAPER_DATABASE_PATH=str(account))
     if not (root / "frontend/dist/app.js").exists():
-        raise SystemExit("UI is not built. Run the documented setup first.")
+        raise SystemExit("Dashboard is not built. On Windows, open START_HERE.bat first.")
     # Do not accidentally launch a second app on an occupied port.
     import socket
 
@@ -38,8 +39,24 @@ def main():
         try:
             check.bind(("127.0.0.1", 8000))
         except OSError:
+            if not args.record:
+                try:
+                    with urllib.request.urlopen("http://127.0.0.1:8000/api/health", timeout=2) as r:
+                        health = json.load(r)
+                    if (
+                        isinstance(health, dict)
+                        and health.get("application") == "ok"
+                        and health.get("paper_api_available") is True
+                        and health.get("real_order_execution_enabled") is False
+                    ):
+                        webbrowser.open("http://127.0.0.1:8000")
+                        print("Your terminal is already running. Opened its dashboard.")
+                        return
+                except (OSError, ValueError):
+                    pass
             raise SystemExit(
-                "Port 8000 is occupied. Stop the existing application first."
+                "Port 8000 is occupied. Stop the existing application first. "
+                "A recorded session needs its own fresh launch."
             ) from None
     child = subprocess.Popen(
         [
@@ -57,7 +74,8 @@ def main():
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
     )
     try:
-        for _ in range(100):
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
             if child.poll() is not None:
                 raise SystemExit("Backend exited during startup")
             try:
@@ -70,7 +88,9 @@ def main():
             raise SystemExit("Backend readiness timed out")
         webbrowser.open("http://127.0.0.1:8000")
         print("Paper-only terminal running. Press Ctrl+C here to stop.")
-        child.wait()
+        result = child.wait()
+        if result:
+            raise SystemExit(f"The backend stopped with exit code {result}. See the error above.")
     except KeyboardInterrupt:
         pass
     finally:

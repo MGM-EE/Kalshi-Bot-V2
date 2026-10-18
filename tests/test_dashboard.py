@@ -23,6 +23,39 @@ def test_modes_require_external_live_source_not_worker():
     assert state.snapshot()["mode"] == "REPLAY"
 
 
+def test_runtime_reports_storage_and_recording_without_credentials(tmp_path):
+    settings = Settings(
+        key_id="PRIVATE_API_ID_MUST_NOT_APPEAR",
+        private_key_path="/private/signing-file.pem",
+        paper_database_path=str(tmp_path / "paper.sqlite3"),
+    )
+    with TestClient(create_app(settings, connect_live=False)) as client:
+        response = client.get("/api/runtime")
+        assert response.status_code == 200
+        result = response.json()
+        assert result["credentials"]["configured"] is True
+        assert result["account"] == {"persistent": True, "file": "paper.sqlite3"}
+        assert result["recorder"] == {"configured": False, "state": "off"}
+        assert result["real_order_execution_enabled"] is False
+        assert "PRIVATE_API_ID" not in response.text
+        assert "/private" not in response.text
+        assert str(tmp_path) not in response.text
+
+
+def test_runtime_reports_actual_recorder_state(tmp_path):
+    settings = Settings(
+        paper_database_path=":memory:", recording_path=str(tmp_path / "capture.jsonl.gz")
+    )
+    app = create_app(settings, connect_live=False)
+    with TestClient(app) as client:
+        value = client.get("/api/runtime").json()
+        assert value["account"]["persistent"] is False
+        assert value["recorder"]["state"] == "recording"
+        assert value["recorder"]["file"] == "capture.jsonl.gz"
+        app.state.recorder.error = "Test-only writer failure"
+        assert client.get("/api/runtime").json()["recorder"]["state"] == "failed"
+
+
 def test_execution_settings_durable_and_no_balance_reset(tmp_path):
     settings = Settings(paper_database_path=str(tmp_path / "paper.sqlite3"))
     with TestClient(create_app(settings, connect_live=False)) as client:

@@ -171,6 +171,20 @@ def create_app(settings=None, connect_live=True):
     async def credentials_status():
         return credential_status(settings)
 
+    @app.get("/api/runtime")
+    async def runtime_status():
+        """Non-secret setup facts; presence of credentials is not authentication."""
+        recorder = app.state.recorder
+        return {
+            "credentials": credential_status(settings),
+            "account": {
+                "persistent": settings.paper_database_path != ":memory:",
+                "file": Path(settings.paper_database_path).name,
+            },
+            "recorder": recorder.status() if recorder else {"configured": False, "state": "off"},
+            "real_order_execution_enabled": False,
+        }
+
     @app.get("/api/strategy/profiles")
     async def profiles():
         return {
@@ -300,12 +314,28 @@ def create_app(settings=None, connect_live=True):
             await websocket.close(code=1008)
             return
         await websocket.accept()
-        try:
+
+        async def wait_for_disconnect():
+            # Consume disconnects even though this stream never accepts commands.
+            # This promptly releases sessions when tabs are closed or reconnect.
             while True:
-                await websocket.send_json(state.snapshot())
-                await asyncio.sleep(0.5)
-        except (WebSocketDisconnect, RuntimeError):
-            pass
+                message = await websocket.receive()
+                if message["type"] == "websocket.disconnect":
+                    return
+
+        receiver = asyncio.create_task(wait_for_disconnect())
+        try:
+            while not receiver.done():
+                value = state.snapshot()
+                try:
+                    await websocket.send_json(value)
+                except (WebSocketDisconnect, OSError, RuntimeError):
+                    return
+                await asyncio.wait({receiver}, timeout=0.5)
+            await receiver
+        finally:
+            receiver.cancel()
+            await asyncio.gather(receiver, return_exceptions=True)
 
     @app.get("/")
     async def index():

@@ -1,5 +1,7 @@
 import {renderTerminal, loadSettings} from "./terminal.js";
 import {settingsForm} from "./settings.js";
+import {startConnection} from "./connection.js";
+import {renderOverview, connectionChanged} from "./overview.js";
 type Health = {status: string; detail: string; age_seconds: number; exchange_age_seconds: number | null};
 type Book = {valid?: boolean; yes_bids?: string[][]; yes_asks?: string[][]; no_bids?: string[][];
   no_asks?: string[][]; bids?: string[][]; asks?: string[][]};
@@ -55,8 +57,6 @@ function quote(rows: string[][] | undefined, valid: boolean | undefined) {
 }
 function render(data: Snapshot) {
   latest = data;
-  document.body.classList.remove("offline");
-  text(document.getElementById("connection")!, `PAPER ONLY — ${data.strategy?.control.enabled && !data.strategy.control.emergency ? "automatic entries enabled; rules and data still gate fills" : "automatic entries paused"} · see source health`);
   renderPaper(data.paper);
   renderTerminal(data);
   if (data.strategy) text(document.getElementById("strategy-control")!, `${data.strategy.control.enabled ? "ENTRIES ENABLED" : "ENTRIES PAUSED"} · ${data.strategy.control.profile_name} v${data.strategy.control.profile_version} · ${data.strategy.control.emergency ? "EMERGENCY EXIT ACTIVE" : "Pinned exits continue for existing automatic positions"}`);
@@ -110,6 +110,7 @@ function render(data: Snapshot) {
     Object.entries(data.sources).map(([k, v]) => [k, v.status, v.age_seconds, v.detail]))]);
   update("events", document.getElementById("events")!, data.events, () => data.events.slice(-10).reverse()
     .map(e => el("div", `${new Date(e.time * 1000).toLocaleTimeString()} · ${e.source} · ${e.status} · ${e.detail}`)));
+  renderOverview(data);
 }
 
 function renderPaper(paper: Portfolio | null | undefined) {
@@ -165,48 +166,7 @@ form.onsubmit = async event => {
     text(result, "Response unavailable. Submit again to retry the SAME order; form edits wait until that request resolves.");
   } finally {submit.disabled = false;}
 };
-let failures = 0;
-function connect() {
-  const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/stream`);
-  const started = performance.now();
-  let lastFrame: number | null = null;
-  let renderingFailed = false;
-  const timer = setInterval(() => {
-    // Opening a socket is not evidence of fresh data. Allow startup time, but
-    // keep the existing five-second stale-data limit after frames arrive.
-    const expired = lastFrame === null ? performance.now() - started > 30000 : performance.now() - lastFrame > 5000;
-    if (expired) {
-      offline("DISCONNECTED / PAUSED — awaiting fresh backend state");
-      if (ws.readyState !== WebSocket.CLOSING && ws.readyState !== WebSocket.CLOSED) ws.close();
-    }
-  }, 1000);
-  ws.onmessage = event => {
-    lastFrame = performance.now();
-    try {
-      render(JSON.parse(event.data));
-      renderingFailed = false;
-      failures = 0;
-    } catch (error) {
-      // A UI exception must not masquerade as a transport failure or create a
-      // reconnect loop. Retry rendering the next frame and expose the cause.
-      if (!renderingFailed) console.error("Dashboard could not display backend state:", error);
-      renderingFailed = true;
-      offline("DISPLAY ERROR — values are stale; see browser Console; awaiting a valid update");
-    }
-  };
-  ws.onclose = () => {
-    clearInterval(timer);
-    offline("DISCONNECTED / PAUSED — awaiting fresh backend state");
-    setTimeout(connect, Math.min(30000, 1000 * 2 ** Math.min(failures++, 5)));
-  };
-  ws.onerror = () => ws.close();
-}
-function offline(reason: string) {
-  document.body.classList.add("offline");
-  text(document.getElementById("connection")!, "DISCONNECTED / PAUSED — displayed values are stale");
-  text(document.getElementById("current-decision")!, reason);
-}
-connect();
+startConnection(render, connectionChanged);
 
 type StrategyProfile = {name: string; version: number; [key: string]: unknown};
 let strategyProfiles: StrategyProfile[] = [];

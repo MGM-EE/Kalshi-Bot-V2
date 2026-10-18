@@ -55,3 +55,18 @@ def test_dashboard_stream_rejects_foreign_origin():
                 "/api/stream", headers={"origin": "https://other.example"}
             ):
                 pass
+
+
+def test_dashboard_snapshot_error_is_not_hidden_as_a_disconnect():
+    import pytest
+
+    app = create_app(Settings(paper_database_path=":memory:"), connect_live=False)
+
+    def broken_snapshot():
+        raise RuntimeError("Snapshot failed")
+
+    with TestClient(app) as client:
+        app.state.market_state.snapshot = broken_snapshot
+        with pytest.raises(RuntimeError, match="Snapshot failed"):
+            with client.websocket_connect("/api/stream") as ws:
+                ws.receive_json()
