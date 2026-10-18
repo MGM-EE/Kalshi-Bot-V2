@@ -28,6 +28,11 @@ launcher console. Setup must run first. Windows scripts are provided but have
 not been executed on Windows in this Linux environment.
 
 Public Kalshi REST discovery/books/trades and Kraken WebSocket v2 need no keys.
+For Windows-local setup, use [the credential helper](docs/local_credentials.md):
+double-click `scripts/configure_kalshi.bat`, enter your API key ID, select the
+downloaded private key, and save the Windows-encrypted copy. Restart the app.
+The cloud environment cannot access your PC's store.
+
 Kalshi WebSocket subscriptions, including CF Benchmarks, require a Kalshi API
 key ID and a corresponding private signing key available locally. Configure
 `KALSHI_API_KEY_ID` and `KALSHI_PRIVATE_KEY_PATH` in the launching process.

@@ -3,9 +3,27 @@
 Updated: 2026-10-18.
 
 **Current phase: 2 — paper engine implemented; authenticated live acceptance pending.**
-The user approved continuation. Manual paper execution is available; automatic
-strategies and real-money order submission are absent. Stop at the usage checkpoint
-after committing this phase; do not start Phase 3 without approval.
+Manual paper execution is available; real-money order submission is absent.
+The user has authorized the remaining build phases, one at a time with focused
+checks, status updates, and separate commits.
+
+## Local credential setup checkpoint
+
+The user subsequently approved continuation through the remaining build phases.
+Phase 3 follows this credential integration; further phase checkpoints still get
+focused tests, status updates, and separate Git commits.
+
+- Native `scripts/configure_kalshi.bat` imports the ID and downloaded PEM into
+  `%LOCALAPPDATA%\KalshiTerminalV2\credentials.dpapi` using current-user Windows
+  DPAPI. The helper supports confirmed replacement/removal; no plaintext fallback.
+- The backend loads that encrypted local copy when environment bindings are
+  absent. Partial environment bindings fail explicitly. Signing uses memory,
+  and the browser status endpoint exposes presence/source/scope only.
+- PC and cloud credentials are separate; no key forwarding or PC listener exists.
+  See `docs/local_credentials.md` for the setup steps and limitations.
+- Four new encryption/store/signing/API tests pass with a test encryption
+  provider. The real DPAPI test is Windows-only and skipped on this Linux host.
+  Actual native dialog, Windows DPAPI, and authenticated feeds remain unverified.
 
 ## Phase 2 completed
 

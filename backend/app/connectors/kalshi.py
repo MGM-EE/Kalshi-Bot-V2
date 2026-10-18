@@ -11,6 +11,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, padding, rsa
 from websockets.asyncio.client import connect
 
+from ..credentials import load_for_settings
 from ..markets.discovery import INDEX_IDS, normalize_market, select_markets, timestamp
 from ..markets.orderbook import BookError, KalshiBook
 from ..settings import ASSETS, KALSHI_REST, KALSHI_WS
@@ -20,10 +21,19 @@ from .common import error_label, retry
 
 class Signer:
     def __init__(self, key_id, path):
+        self._load(key_id, Path(path).read_bytes())
+
+    def _load(self, key_id, private_pem):
         self.key_id = key_id
-        self.key = serialization.load_pem_private_key(Path(path).read_bytes(), password=None)
+        self.key = serialization.load_pem_private_key(private_pem, password=None)
         if not isinstance(self.key, (rsa.RSAPrivateKey, ed25519.Ed25519PrivateKey)):
             raise ValueError("Unsupported signing key")
+
+    @classmethod
+    def from_credentials(cls, credentials):
+        signer = cls.__new__(cls)
+        signer._load(credentials.key_id, credentials.private_pem)
+        return signer
 
     def headers(self, method, path):
         stamp = str(int(time.time() * 1000))
@@ -411,21 +421,22 @@ class Kalshi:
 
     async def run(self):
         auth_ok = False
-        if self.settings.key_id and self.settings.private_key_path:
-            try:
-                self.signer = Signer(self.settings.key_id, self.settings.private_key_path)
+        try:
+            credentials = load_for_settings(self.settings)
+            if credentials:
+                self.signer = Signer.from_credentials(credentials)
                 auth_ok = True
-            except Exception:
+            else:
                 self.state.health(
                     "kalshi:socket",
                     "unavailable",
-                    "Cannot load signing key; check local configuration",
+                    "Import local credentials on Windows or configure the credential environment variables",
                 )
-        else:
+        except Exception:
             self.state.health(
                 "kalshi:socket",
                 "unavailable",
-                "Kalshi WebSocket requires API key ID and local signing key",
+                "Cannot unlock signing credentials; check local setup",
             )
         if auth_ok:
             async with asyncio.TaskGroup() as group:

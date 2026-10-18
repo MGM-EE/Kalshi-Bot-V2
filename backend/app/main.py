@@ -8,6 +8,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .connectors.kalshi import Kalshi
 from .connectors.kraken import Kraken
+from .credentials import credential_status
 from .execution.models import PaperOrder
 from .execution.paper_broker import IdempotencyConflict
 from .execution.service import open_broker, paper_worker, settlement_worker
@@ -87,6 +88,10 @@ def create_app(settings=None, connect_live=True):
     @app.get("/api/state")
     async def snapshot():
         return state.snapshot()
+
+    @app.get("/api/credentials/status")
+    async def credentials_status():
+        return credential_status(settings)
 
     @app.get("/api/health")
     async def health():

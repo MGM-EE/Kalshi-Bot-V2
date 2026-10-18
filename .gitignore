@@ -9,5 +9,6 @@ frontend/dist/
 .env
 *.pem
 *.key
+*.dpapi
 data/
 *.log
