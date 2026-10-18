@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark"><title>Kalshi Crypto Terminal V2</title>
+  <style>
+    :root{font:14px system-ui,sans-serif;color:#dbe5ef;background:#0b1119}
+    body{margin:0}header{position:sticky;top:0;background:#101c2a;border-bottom:1px solid #345;padding:16px 24px;z-index:1}
+    h1{font-size:19px;margin:0 0 10px}h2{font-size:17px;margin:0 0 14px}h3{font-size:13px;color:#91aac2}
+    main{padding:20px 24px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px}
+    article,section{background:#111b28;border:1px solid #26374b;border-radius:7px;padding:16px;margin-bottom:16px}
+    dl{display:grid;grid-template-columns:1fr 1.2fr;gap:9px;margin:10px 0}dt{color:#91aac2}dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+    .muted{color:#91aac2}.live{color:#6bdeb1}.warning{color:#ffc66d}.bad{color:#ff8992}
+    table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:right;padding:5px;border-bottom:1px solid #243348}
+    th:first-child,td:first-child{text-align:left}summary{cursor:pointer;color:#9bbbd9;padding:8px 0}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;max-height:240px;overflow:auto}
+    #health{display:flex;gap:6px;flex-wrap:wrap}.badge{font:12px ui-monospace,monospace;background:#172638;padding:5px 8px;border-radius:4px}
+    #connection{font-weight:600}#events{font:12px ui-monospace,monospace;line-height:1.7}
+    .offline main{opacity:.55}@media(max-width:500px){header,main{padding:12px}.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body class="offline">
+  <header><h1>KALSHI CRYPTO TERMINAL V2 · READ ONLY · PHASE 1</h1>
+    <div id="connection" class="warning">DISCONNECTED / PAUSED — waiting for backend</div>
+    <p class="muted">No trading engine is enabled. Missing values remain unavailable. Kraken spot is never a settlement value.</p>
+    <div id="health"></div>
+  </header>
+  <main><div id="markets" class="grid"></div>
+    <section><h2>Source health</h2><div id="sources"></div></section>
+    <section><h2>Connection events</h2><div id="events"></div></section>
+  </main>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
