@@ -16,16 +16,35 @@
     pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12px ui-monospace,monospace;max-height:240px;overflow:auto}
     #health{display:flex;gap:6px;flex-wrap:wrap}.badge{font:12px ui-monospace,monospace;background:#172638;padding:5px 8px;border-radius:4px}
     #connection{font-weight:600}#events{font:12px ui-monospace,monospace;line-height:1.7}
+    form{display:flex;gap:10px;flex-wrap:wrap;align-items:end}label{display:grid;gap:5px;color:#91aac2;font-size:12px}
+    input,select,button{font:inherit;background:#172638;color:#dbe5ef;border:1px solid #456;border-radius:4px;padding:7px}
+    input{width:100px}button{cursor:pointer}button:disabled{opacity:.5;cursor:wait}#paper-values{max-width:600px}
     .offline main{opacity:.55}@media(max-width:500px){header,main{padding:12px}.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body class="offline">
-  <header><h1>KALSHI CRYPTO TERMINAL V2 · READ ONLY · PHASE 1</h1>
+  <header><h1>KALSHI CRYPTO TERMINAL V2 · PAPER ONLY · PHASE 2</h1>
     <div id="connection" class="warning">DISCONNECTED / PAUSED — waiting for backend</div>
-    <p class="muted">No trading engine is enabled. Missing values remain unavailable. Kraken spot is never a settlement value.</p>
+    <p class="muted">Automatic entries are disabled. Manual orders affect paper balances only. Kraken spot is never a settlement value.</p>
     <div id="health"></div>
   </header>
   <main><div id="markets" class="grid"></div>
+    <section><h2>Paper portfolio</h2><dl id="paper-values"></dl>
+      <details><summary>Manual paper execution controls</summary>
+        <p class="muted">Research controls only. Buys require fresh venue data and CF reference. A pending order is not a fill. Defaults and limits are in config/paper.json.</p>
+        <form id="paper-form">
+          <label>Asset<select name="asset"><option>BTC</option><option>ETH</option><option>SOL</option></select></label>
+          <label>Action<select name="action"><option value="buy">BUY</option><option value="sell">SELL</option></select></label>
+          <label>Outcome<select name="outcome"><option value="yes">YES</option><option value="no">NO</option></select></label>
+          <label>Contracts<input name="quantity" type="number" min="0.01" step="0.01" value="1" required></label>
+          <label>Limit USD<input name="limit_price" type="number" min="0.0001" max="0.9999" step="0.0001" value="0.40" required></label>
+          <label>Buy budget incl. fees<input name="max_cost" type="number" min="0.01" step="0.01" value="1.00" required></label>
+          <label>Execution<select name="mode"><option value="marketable">Marketable IOC</option><option value="passive">Passive post-only</option></select></label>
+          <button type="submit">Submit paper order</button>
+        </form><p id="paper-result" role="status" aria-live="polite">No paper order submitted.</p>
+      </details>
+      <details><summary>Paper orders and confirmed fills</summary><div id="paper-orders"></div></details>
+    </section>
     <section><h2>Source health</h2><div id="sources"></div></section>
     <section><h2>Connection events</h2><div id="events"></div></section>
   </main>

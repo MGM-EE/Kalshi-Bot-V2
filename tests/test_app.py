@@ -4,6 +4,7 @@ from decimal import Decimal
 from fastapi.testclient import TestClient
 
 from backend.app.main import create_app
+from backend.app.settings import Settings
 from backend.app.state import State
 
 
@@ -26,11 +27,11 @@ def test_health_staleness_exchange_age_and_clock_drift(monkeypatch):
 
 
 def test_read_only_app_http_and_dashboard_stream():
-    app = create_app(connect_live=False)
+    app = create_app(Settings(paper_database_path=":memory:"), connect_live=False)
     app.state.market_state.assets["BTC"]["kraken"]["ticker"] = {"last": Decimal("100000.123456")}
     with TestClient(app) as client:
         assert client.get("/api/health").json()["application"] == "ok"
-        assert "READ ONLY" in client.get("/").text
+        assert "PAPER ONLY" in client.get("/").text
         assert (
             client.get("/api/state").json()["assets"]["BTC"]["kraken"]["ticker"]["last"]
             == "100000.123456"
@@ -46,7 +47,9 @@ def test_dashboard_stream_rejects_foreign_origin():
     import pytest
     from starlette.websockets import WebSocketDisconnect
 
-    with TestClient(create_app(connect_live=False)) as client:
+    with TestClient(
+        create_app(Settings(paper_database_path=":memory:"), connect_live=False)
+    ) as client:
         with pytest.raises(WebSocketDisconnect):
             with client.websocket_connect(
                 "/api/stream", headers={"origin": "https://other.example"}

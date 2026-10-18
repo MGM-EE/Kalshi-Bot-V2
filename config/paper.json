@@ -1,0 +1,30 @@
+{
+  "execution": {
+    "version": "PAPER_EXECUTION:1",
+    "starting_balance": "1000.00",
+    "balance_precision": "0.01",
+    "latency_ms": 250,
+    "slippage_dollars": "0.001",
+    "max_slippage_dollars": "0.02",
+    "depth_participation": "0.5",
+    "queue_multiplier": "1.5",
+    "queue_buffer_contracts": "1.00",
+    "max_data_age_seconds": 15
+  },
+  "risk": {
+    "version": "PAPER_RISK:1",
+    "max_entry_cost": "25",
+    "max_round_exposure": "100",
+    "max_asset_exposure": "200",
+    "max_total_exposure": "500",
+    "max_entries_per_round": 10,
+    "max_round_trips_per_round": 10,
+    "max_positions": 6,
+    "min_quantity": "0.01",
+    "max_quantity": "1000",
+    "max_loss_per_trade": "25",
+    "max_loss_per_round": "50",
+    "max_daily_drawdown": "100",
+    "max_consecutive_losses": 5
+  }
+}

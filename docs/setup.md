@@ -58,3 +58,22 @@ Run `.venv/bin/python scripts/live_check.py --seconds 30` after credentials and
 network settings are applied. Success requires actual data, recognized market
 rules, and current CF references for all assets. Missing required data exits 2.
 It does not silently replace required streams with fixtures or REST snapshots.
+
+## Phase 2 paper runtime
+
+The backend opens `data/paper.sqlite3` on startup and retains it across restarts.
+It starts the manual paper-order worker and read-only official settlement reconciler.
+Automatic strategy entries and real-money execution remain disabled. The dashboard
+includes manual paper controls and portfolio/order state. A buy without current
+CF and venue data is rejected without changing cash or positions.
+
+Defaults are validated from `config/paper.json`; `PAPER_CONFIG_PATH` and
+`PAPER_DATABASE_PATH` optionally select local files. Do not delete an existing DB
+or overwrite balances during setup. Existing balances override the new-account
+starting balance. Existing account precision cannot silently change. Stop the
+backend before file-copy backups, or use SQLite's online backup API.
+
+Local startup readiness now includes `GET /api/paper/portfolio`: it must report
+`PAPER ONLY`, persisted cash/positions, and current order state. `/api/health`
+reports phase 2, `paper_api_available=true`, and `real_order_execution_enabled=false`.
+Paper accounting tests use isolated databases and do not reset the actual portfolio.

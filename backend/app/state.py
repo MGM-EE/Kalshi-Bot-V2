@@ -1,5 +1,6 @@
-"""Bounded in-memory Phase 1 state. No balances, signals, or order submission."""
+"""Bounded market-data state; paper accounting is provided by the durable broker."""
 
+import asyncio
 import time
 from collections import deque
 from decimal import Decimal
@@ -25,6 +26,8 @@ class State:
             asset: {"market": None, "upcoming": [], "kalshi": {}, "kraken": {}} for asset in ASSETS
         }
         self.events = deque(maxlen=60)
+        self.changed = asyncio.Event()
+        self.paper_provider = None
 
     def health(self, name, status, detail="", exchange_ts=None, stale_after=None):
         now = time.time()
@@ -38,8 +41,9 @@ class State:
             "exchange_ts": exchange_ts,
             "stale_after": self.stale_seconds if stale_after is None else stale_after,
         }
+        self.changed.set()
 
-    def snapshot(self):
+    def snapshot(self, include_paper=True):
         now = time.time()
         health = {}
         for name, raw in self.sources.items():
@@ -59,15 +63,16 @@ class State:
                 "age_seconds": round(age, 2),
                 "exchange_age_seconds": exchange_age,
             }
-        # Phase 1 cannot trade; a socket heartbeat never establishes trading readiness.
+        # Automated strategies remain disabled; a heartbeat is not trading readiness.
         return wire(
             {
                 "mode": "DISCONNECTED / PAUSED",
                 "execution_enabled": False,
-                "phase": 1,
+                "phase": 2,
                 "timestamp": now,
                 "sources": health,
                 "assets": self.assets,
                 "events": self.events,
+                "paper": self.paper_provider() if include_paper and self.paper_provider else None,
             }
         )

@@ -71,6 +71,7 @@ class Kalshi:
         }
 
     async def discover_asset(self, client, asset, series_ticker):
+        series_read_at = time.time()
         series = (await self.get(client, f"/series/{series_ticker}"))["series"]
         markets = {}
         for status in ("open", "unopened"):
@@ -93,9 +94,25 @@ class Kalshi:
                     raise ValueError("Repeated discovery cursor")
                 seen.add(cursor)
         current, upcoming = select_markets(list(markets.values()), time.time())
+        if current:
+            try:
+                await self.effective_fees(client, current, series, series_read_at)
+            except Exception as exc:
+                current["fees_verified_at"] = None
+                self.state.health(f"kalshi:{asset}:fees", "unavailable", error_label(exc))
         target = self.state.assets[asset]
         old_ticker = target["market"]["ticker"] if target["market"] else None
         new_ticker = current["ticker"] if current else None
+        if current and old_ticker == new_ticker:
+            old_market = target["market"]
+            if current.get("index_id") == old_market.get("index_id"):
+                for key in ("current_index", "trailing_average", "reference_status"):
+                    if key in old_market:
+                        current[key] = old_market[key]
+                if current["close_time"] == old_market["close_time"]:
+                    current["partial_final_minute_average"] = old_market.get(
+                        "partial_final_minute_average"
+                    )
         target["market"], target["upcoming"] = current, upcoming
         if old_ticker != new_ticker:
             target["kalshi"] = {}
@@ -115,6 +132,53 @@ class Kalshi:
             stale_after=self.settings.discovery_seconds + self.settings.stale_seconds,
         )
 
+    async def effective_fees(self, client, market, series, series_read_at=None):
+        series_read_at = time.time() if series_read_at is None else series_read_at
+        event = (await self.get(client, f"/events/{market['event_ticker']}"))["event"]
+        fee_type = event.get("fee_type_override")
+        multiplier = event.get("fee_multiplier_override")
+        if (fee_type is None) != (multiplier is None):
+            raise ValueError("Incomplete event fee override")
+        market["fee_type"] = series["fee_type"] if fee_type is None else fee_type
+        market["fee_multiplier"] = series["fee_multiplier"] if multiplier is None else multiplier
+        changes = (
+            await self.get(
+                client, "/series/fee_changes", series_ticker=series["ticker"], show_historical=True
+            )
+        )["series_fee_change_arr"]
+        cursor, seen = "", set()
+        while True:
+            data = await self.get(
+                client,
+                "/events/fee_changes",
+                event_ticker=market["event_ticker"],
+                limit=1000,
+                cursor=cursor,
+            )
+            changes.extend(data["event_fee_changes"])
+            cursor = data.get("cursor", "")
+            if not cursor:
+                break
+            if cursor in seen:
+                raise ValueError("Repeated fee-change cursor")
+            seen.add(cursor)
+        now = time.time()
+        if any(series_read_at <= timestamp(change["scheduled_ts"]) <= now for change in changes):
+            raise ValueError("Fee change overlapped metadata retrieval; wait for refresh")
+        future = [
+            timestamp(change["scheduled_ts"])
+            for change in changes
+            if timestamp(change["scheduled_ts"]) > now
+        ]
+        market["fees_verified_at"] = now
+        market["fees_valid_until"] = min([now + 60, *future])
+        self.state.health(
+            f"kalshi:{market['asset']}:fees",
+            "live",
+            "Effective series/event fees and scheduled changes",
+            stale_after=60,
+        )
+
     def record_trade(self, asset, ticker, row):
         trade_id = row.get("trade_id")
         ids = self.trade_ids.setdefault(ticker, deque(maxlen=2000))
@@ -132,6 +196,7 @@ class Kalshi:
                     "count_fp",
                     "created_time",
                     "ts",
+                    "ts_ms",
                     "taker_outcome_side",
                     "taker_book_side",
                     "taker_side",

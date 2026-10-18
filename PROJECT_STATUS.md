@@ -2,11 +2,48 @@
 
 Updated: 2026-10-18.
 
-**Current phase: 1 — implementation committed; live acceptance remains pending.**
-The application is read-only. No paper broker, strategy execution, or real-money
-order submission exists. Do not start Phase 2 without explicit user approval.
+**Current phase: 2 — paper engine implemented; authenticated live acceptance pending.**
+The user approved continuation. Manual paper execution is available; automatic
+strategies and real-money order submission are absent. Stop at the usage checkpoint
+after committing this phase; do not start Phase 3 without approval.
 
-## Implemented
+## Phase 2 completed
+
+- Durable paper-only broker and local API/dashboard controls for buy/sell,
+  marketable IOC/passive post-only orders, cancellations, latency, and partial fills.
+- Decimal depth walking, adverse tick-grid slippage, fee-inclusive budgets, and
+  persistent canonical liquidity debt preventing reuse of consumed depth.
+- Conservative passive queues driven by fresh, opposing public trade prints;
+  no fills from touches, cancellations, duplicates, or unknown/block trades.
+- Current series/event fee overrides and scheduled-change expiry, six-decimal
+  fee rounding, per-order rebate accumulators, and explicit account precision.
+- Atomic SQLite cash/inventory reservations, fills, fee/cost accounting, counters,
+  restart idempotency, and official-result settlement with historical fallback.
+- Hard allocation, exposure, entry/round-trip, loss, drawdown, and quantity limits
+  rechecked before fills. Protective exits can use fresh Kalshi data when other
+  feeds fail, and partial holdings can exit below the minimum entry size.
+- Current paper configuration in `config/paper.json`; mechanics and limitations
+  documented in `docs/paper_execution.md`. No automatic strategy logic was added.
+
+## Phase 2 evidence and limitations
+
+- **62 total deterministic tests passed** (33 focused paper tests plus 29 existing
+  feed/application tests), including local API buys and broker buy/sell/settlement paths,
+  partial exits, restart recovery, competing reservations, rollback injection,
+  fee schedule expiry, queue behavior, stale/cutoff rejection, and request security.
+- Python lint, TypeScript build/typecheck, and local server/dashboard/paper API
+  startup checks passed. Windows execution still requires a Windows machine.
+- Live BTC/ETH/SOL REST checks confirmed valid books, quadratic × 1 effective
+  fees, and depth/fee previews. All three attempted buys correctly rejected
+  missing CF references; the isolated test account stayed unchanged. These are
+  not authenticated live fills. Actual finalized settlement metadata was also read.
+- Signing credentials remain absent. Authenticated live paper buy/sell and CF
+  acceptance cannot be claimed; earlier Phase 1 live checks below remain pending.
+- High reasoning was used for financial invariants. The next operational step
+  (secure credentials, connectivity, platform checks) can use Medium. Return to
+  High for Phase 3 entry/exit precedence and configuration logic.
+
+## Phase 1 foundation
 
 - Python/FastAPI asyncio backend and lightweight compiled TypeScript dashboard.
 - Real Kraken Spot WebSocket v2 ticker, trades, and checksum-validated ten-level
@@ -28,7 +65,7 @@ order submission exists. Do not start Phase 2 without explicit user approval.
   Windows setup/launch/self-test scripts, and opt-in live acceptance checker.
 - Original supplied project brief retained in `docs/project_brief.md`.
 
-## Validation completed
+## Phase 1 validation completed
 
 - **29 deterministic tests passed**, including market selection/mapping,
   complementary executable asks, fractional depth, Kraken CRC32, sequence gaps,
@@ -73,8 +110,10 @@ CF tick in this session.
 
 Saved `install_script`, `start_skill`, additive runtime variable requirements for
 the Kalshi key ID/local key path, and required API/documentation network hosts.
-Existing package-manager presets were preserved. The setup/startup instructions
-use the existing isolated checkout and keep execution disabled.
+Existing package-manager presets were preserved. Phase 2 startup instructions
+retain the isolated checkout and database, start only local paper execution, and
+keep automatic strategies/real-money execution disabled. `kalshi.com` was added
+to the preserved custom allowlist to read the official fee schedule.
 
 Draft persistence was confirmed. Review and save the configuration in environment
 settings, then publish when appropriate. Saving a draft does not itself publish
@@ -85,12 +124,13 @@ was requested or performed. Fresh-task snapshot restoration is not verified.
 
 | Phase | Remaining work |
 |---|---|
-| 2 | Exact fees, depth-based partial fills/slippage, risk limits, durable SQLite paper accounting, buy/sell/settlement verification |
+| 2 | Implemented; authenticated live acceptance and Windows checks remain pending |
 | 3 | Immutable BASELINE V1, recover/document unavailable legacy filters, CUSTOM V2 conditions, adaptive deterministic exits, versioned settings and multiple round trips |
 | 4 | Venue-specific whale flow, liquidity persistence, volatility, chop/swing scores and confirmation/hysteresis |
 | 5 | Full decision strip/condition states, settings UI, portfolio views, confirmed-fill notifications |
 | 6 | Compact event recording, deterministic replay, strategy comparisons, analytics and performance validation |
 
-Next step: finish credential-dependent Phase 1 acceptance, summarize the result,
-and wait for approval before Phase 2. Keep subsequent changes within the approved
-phase, test them, update this file, and commit working changes.
+Next step: securely configure Kalshi signing credentials and complete live
+acceptance using Medium reasoning. Then obtain approval for Phase 3 and use High
+for strategy logic. Keep changes within the approved phase, test them, update this
+file, and commit working changes. Commits remain local unless a push is requested.

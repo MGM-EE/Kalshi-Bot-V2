@@ -7,7 +7,11 @@ type Market = {ticker: string; title: string; close_time: number; opening_refere
 type Venue = {book?: Book; ticker?: {last: string; bid: string; ask: string; spread: string};
   trades?: Record<string, unknown>[]};
 type Asset = {market: Market | null; upcoming: Market[]; kalshi: Venue; kraken: Venue};
-type Snapshot = {assets: Record<string, Asset>; sources: Record<string, Health>;
+type PaperRecord = {id: string; status: string; filled_quantity: string; fees: string; reason: string};
+type Portfolio = {cash: string; available_cash: string; reserved_cash: string; capital_committed: string;
+  realized_pnl: string; unrealized_pnl_conservative: string; equity_conservative: string; fees: string;
+  open_positions: number; orders: PaperRecord[]};
+type Snapshot = {assets: Record<string, Asset>; sources: Record<string, Health>; paper?: Portfolio | null;
   events: {time: number; source: string; status: string; detail: string}[]};
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", cls = "") {
@@ -16,6 +20,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", cls = "") 
 function text(node: HTMLElement, value: string) {if (node.textContent !== value) node.textContent = value;}
 const money = (v: unknown) => v === null || v === undefined ? "Unavailable" : `$${v}`;
 const cache = new Map<string, string>();
+let latest: Snapshot | null = null;
 function update(key: string, node: HTMLElement, value: unknown, render: () => Node[]) {
   const signature = JSON.stringify(value);
   if (cache.get(key) !== signature) {cache.set(key, signature); node.replaceChildren(...render());}
@@ -46,8 +51,10 @@ function quote(rows: string[][] | undefined, valid: boolean | undefined) {
   return valid && rows?.length ? money(rows[0][0]) : "Unavailable";
 }
 function render(data: Snapshot) {
+  latest = data;
   document.body.classList.remove("offline");
-  text(document.getElementById("connection")!, "DISCONNECTED / PAUSED — Phase 1 read-only data monitor");
+  text(document.getElementById("connection")!, "PAPER ONLY — automatic entries disabled · see per-source health");
+  renderPaper(data.paper);
   for (const [asset, value] of Object.entries(data.assets)) {
     const card = cards.get(asset); if (!card) continue;
     const m = value.market, kb = value.kalshi.book, spot = value.kraken.ticker;
@@ -99,6 +106,59 @@ function render(data: Snapshot) {
   update("events", document.getElementById("events")!, data.events, () => data.events.slice(-10).reverse()
     .map(e => el("div", `${new Date(e.time * 1000).toLocaleTimeString()} · ${e.source} · ${e.status} · ${e.detail}`)));
 }
+
+function renderPaper(paper: Portfolio | null | undefined) {
+  if (!paper) return;
+  const node = document.getElementById("paper-values")!;
+  const fields = {"Paper cash": money(paper.cash), "Available cash": money(paper.available_cash),
+    "Reserved cash": money(paper.reserved_cash), "Capital committed": money(paper.capital_committed),
+    "Realized net P&L": money(paper.realized_pnl), "Conservative unrealized P&L": money(paper.unrealized_pnl_conservative),
+    "Conservative equity": money(paper.equity_conservative), "Total fees": money(paper.fees),
+    "Open positions": String(paper.open_positions)};
+  update("paper-values", node, fields, () => Object.entries(fields).flatMap(([k, v]) => [el("dt", k), el("dd", v)]));
+  const orders = document.getElementById("paper-orders")!;
+  update("paper-orders", orders, paper.orders, () => paper.orders.slice(0, 10).map(order => {
+    const row = el("p", `${order.id.slice(0, 8)} · ${order.status.toUpperCase()} · confirmed qty ${order.filled_quantity} · fees $${order.fees} · ${order.reason} `);
+    if (["pending", "resting"].includes(order.status)) {
+      const button = el("button", "Cancel remainder");
+      button.onclick = async () => {
+        button.disabled = true;
+        try {
+          const response = await fetch(`/api/paper/orders/${encodeURIComponent(order.id)}`, {method: "DELETE"});
+          const value = await response.json();
+          text(document.getElementById("paper-result")!, response.ok ? `${value.status}: ${value.reason}` : JSON.stringify(value));
+        } catch {text(document.getElementById("paper-result")!, "Cancellation response unavailable; check order state before retrying.");}
+        finally {button.disabled = false;}
+      };
+      row.append(button);
+    }
+    return row;
+  }));
+}
+
+const form = document.getElementById("paper-form") as HTMLFormElement;
+let retryPayload: Record<string, unknown> | null = null;
+form.onsubmit = async event => {
+  event.preventDefault();
+  const result = document.getElementById("paper-result")!, submit = form.querySelector("button")!;
+  if (!retryPayload) {
+    const fields = new FormData(form), asset = String(fields.get("asset")), market = latest?.assets[asset]?.market;
+    if (!market) {text(result, "No current market available."); return;}
+    retryPayload = {client_order_id: crypto.randomUUID(), asset, ticker: market.ticker,
+      action: fields.get("action"), outcome: fields.get("outcome"), quantity: fields.get("quantity"),
+      limit_price: fields.get("limit_price"), mode: fields.get("mode"),
+      max_cost: fields.get("action") === "buy" ? fields.get("max_cost") : null};
+  }
+  submit.disabled = true;
+  try {
+    const response = await fetch("/api/paper/orders", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(retryPayload)});
+    const value = await response.json();
+    text(result, response.ok ? `${value.id.slice(0, 8)} · ${value.status.toUpperCase()} · ${value.reason}. Confirmed quantity: ${value.filled_quantity}.` : JSON.stringify(value));
+    retryPayload = null;
+  } catch {
+    text(result, "Response unavailable. Submit again to retry the SAME order; form edits wait until that request resolves.");
+  } finally {submit.disabled = false;}
+};
 let failures = 0;
 function connect() {
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/stream`);

@@ -51,3 +51,13 @@ Authenticated Kalshi/CF and lifecycle delivery cannot be live-verified until
 credentials are configured. The live checker fails explicitly for these gaps.
 Local protocol tests do not establish account permissions or index availability.
 Optional Kraken L3/futures and economic-event sources are deferred.
+
+## Phase 2 additions
+
+See [paper execution](paper_execution.md) for fee schedule, fractional rounding,
+per-order rebates, event overrides, and scheduled-change references. Public live
+metadata confirmed quadratic × 1 for all three 15-minute series. An actual public
+settled BTC response used `status=finalized`, `result=yes`, and `settlement_ts`;
+the reconciler accepts final exchange results instead of inferring settlement.
+All exchange operations in this application remain GET requests/subscriptions.
+Paper mutations affect local SQLite only.

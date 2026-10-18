@@ -1,8 +1,9 @@
 # Kalshi Crypto Trading Terminal V2
 
-Phase 1 read-only market-data terminal for BTC, ETH, and SOL. Python 3.12+,
-FastAPI, asyncio, Decimal books, and a small TypeScript dashboard. There is no
-order submission or paper execution in this phase. No mock feed is used by the app.
+Live market-data and paper-execution terminal for BTC, ETH, and SOL. Python 3.12+,
+FastAPI, asyncio, Decimal books, SQLite accounting, and a small TypeScript dashboard.
+Manual controls submit paper orders only. Automatic strategies await Phase 3.
+No real-money order transport or mock runtime feed exists.
 
 ## Run
 
@@ -33,6 +34,17 @@ key ID and a corresponding private signing key available locally. Configure
 The application does not load `.env` files automatically. Never commit the key,
 enter it in chat, send it to the frontend, or use a proxy token placeholder as
 a local signing key. Keep its file outside this checkout with restricted access.
+
+Buys require fresh contract rules, CF reference, and both venues' critical data.
+Without authenticated CF access, the terminal displays public data and explains
+why buys are rejected. Protective sells need a fresh Kalshi book and current fees;
+closed positions wait for official settlement.
+
+Cash, positions, orders, reservations, fees, and fills persist in
+`data/paper.sqlite3`. Do not delete it to restart. Defaults are in
+[config/paper.json](config/paper.json); optional `PAPER_CONFIG_PATH` and
+`PAPER_DATABASE_PATH` select local files. Starting balance applies only to a new
+account. See [paper mechanics](docs/paper_execution.md).
 
 ## Verify
 

@@ -23,7 +23,12 @@ snapshots by reconnecting. Duplicate trade IDs are bounded and ignored. Kraken
 out-of-order trades are discarded; out-of-order books require a new snapshot.
 Memory is bounded to 100 displayed trades, 2,000 deduplication IDs per active
 market, current books, and 60 connection events. Old market buffers are removed
-at rollover. No persistent trading state exists until Phase 2.
+at rollover. Phase 2 adds transactional SQLite orders, cash reservations, positions,
+fills, fee accumulators, counters, liquidity debt, and official settlements.
+`execution/` and `risk/` are separate from connectors; the broker makes no network
+requests. A worker processes pending/passive paper orders, and a separate worker
+only reads official settlement data. The dashboard exposes manual paper controls;
+automatic strategies await Phase 3.
 
 Rule parsing supports explicit 60-second CF opening/closing comparison language,
 known asset index IDs, and consistent strike comparisons. Unsupported wording
@@ -34,7 +39,7 @@ average is not a forecast or a settlement. No forecast is produced in Phase 1.
 ## Remaining sequence
 
 1. Finish authenticated live Phase 1 acceptance, then request approval.
-2. Paper fills/fees, limits, SQLite portfolio durability, buy/sell/settlement tests.
+2. Paper engine implemented; complete authenticated live acceptance when credentials exist.
 3. Immutable BASELINE V1 and versioned configurable entry/exit profiles. No legacy
    filters were available in this originally empty repository; recover and document
    them before claiming full baseline equivalence.

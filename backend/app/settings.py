@@ -18,10 +18,18 @@ class Settings:
     stale_seconds: float = 15
     discovery_seconds: float = 30
     rest_seconds: float = 5
+    paper_database_path: str = str(ROOT / "data" / "paper.sqlite3")
+    paper_config_path: str = str(ROOT / "config" / "paper.json")
 
     @classmethod
     def from_env(cls):
         return cls(
             key_id=os.environ.get("KALSHI_API_KEY_ID", ""),
             private_key_path=os.environ.get("KALSHI_PRIVATE_KEY_PATH", ""),
+            paper_database_path=os.environ.get(
+                "PAPER_DATABASE_PATH", str(ROOT / "data" / "paper.sqlite3")
+            ),
+            paper_config_path=os.environ.get(
+                "PAPER_CONFIG_PATH", str(ROOT / "config" / "paper.json")
+            ),
         )

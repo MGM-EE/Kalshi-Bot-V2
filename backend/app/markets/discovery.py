@@ -103,6 +103,7 @@ def normalize_market(raw, series, asset):
         "settlement_sources": series.get("settlement_sources", []),
         "fee_type": series.get("fee_type"),
         "fee_multiplier": series.get("fee_multiplier"),
+        "fee_waiver_expiration_time": raw.get("fee_waiver_expiration_time"),
         "price_ranges": raw.get("price_ranges"),
         "price_level_structure": raw.get("price_level_structure"),
         "volume_contracts": raw.get("volume_fp", raw.get("volume")),

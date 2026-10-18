@@ -49,7 +49,7 @@ def main():
         else:
             raise SystemExit("Backend readiness timed out")
         webbrowser.open("http://127.0.0.1:8000")
-        print("Read-only terminal running. Press Ctrl+C here to stop.")
+        print("Paper-only terminal running. Press Ctrl+C here to stop.")
         child.wait()
     except KeyboardInterrupt:
         pass
