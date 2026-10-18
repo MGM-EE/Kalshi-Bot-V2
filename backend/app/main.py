@@ -13,6 +13,8 @@ from .credentials import credential_status
 from .execution.models import PaperOrder
 from .execution.paper_broker import IdempotencyConflict
 from .execution.service import open_broker, paper_worker, settlement_worker
+from .indicators.config import IndicatorConfig
+from .indicators.engine import IndicatorEngine
 from .indicators.features import Features
 from .settings import ROOT, Settings
 from .state import State, wire
@@ -31,6 +33,11 @@ def create_app(settings=None, connect_live=True):
         broker = open_broker(state, settings)
         app.state.paper_broker = broker
         state.paper_provider = broker.portfolio
+        indicators = IndicatorEngine(state, features, broker.db)
+        features.advanced = indicators
+        state.observers.append(indicators.observe)
+        state.indicator_provider = lambda: indicators.snapshot(broker.clock())
+        app.state.indicators = indicators
         strategy = StrategyEngine(broker, features)
         app.state.strategy_engine = strategy
         state.strategy_provider = strategy.snapshot
@@ -50,6 +57,8 @@ def create_app(settings=None, connect_live=True):
             await asyncio.gather(*tasks, return_exceptions=True)
             state.paper_provider = None
             state.strategy_provider = None
+            state.indicator_provider = None
+            state.observers.remove(indicators.observe)
             broker.db.close()
 
     app = FastAPI(title="Kalshi Terminal V2 — Paper research", lifespan=lifespan)
@@ -67,6 +76,11 @@ def create_app(settings=None, connect_live=True):
         emergency: bool | None = None
         profile_name: str | None = None
         profile_version: int | None = None
+
+    class IndicatorUpdate(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        config: IndicatorConfig
+        acknowledge_open_positions: bool = False
 
     def broker():
         if app.state.paper_broker is None:
@@ -119,6 +133,19 @@ def create_app(settings=None, connect_live=True):
             "control": app.state.strategy_engine.store.read("control"),
         }
 
+    @app.get("/api/indicators/config")
+    async def indicator_config():
+        return app.state.indicators.config.model_dump(mode="json")
+
+    @app.post("/api/indicators/config", dependencies=[Depends(local_write)])
+    async def update_indicators(value: IndicatorUpdate):
+        try:
+            return app.state.indicators.save_config(
+                value.config, value.acknowledge_open_positions
+            ).model_dump(mode="json")
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
     @app.post("/api/strategy/profiles", dependencies=[Depends(local_write)])
     async def save_profile(profile: Profile):
         try:
@@ -142,7 +169,7 @@ def create_app(settings=None, connect_live=True):
         )
         return {
             "application": "ok",
-            "phase": 3,
+            "phase": 4,
             "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
             "paper_api_available": True,
             "real_order_execution_enabled": False,

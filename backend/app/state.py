@@ -29,6 +29,7 @@ class State:
         self.changed = asyncio.Event()
         self.paper_provider = None
         self.strategy_provider = None
+        self.indicator_provider = None
         self.observers = []
 
     def health(self, name, status, detail="", exchange_ts=None, stale_after=None):
@@ -75,12 +76,15 @@ class State:
                 "mode": "DISCONNECTED / PAUSED",
                 "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
                 "real_order_execution_enabled": False,
-                "phase": 3,
+                "phase": 4,
                 "timestamp": now,
                 "sources": health,
                 "assets": self.assets,
                 "events": self.events,
                 "paper": self.paper_provider() if include_paper and self.paper_provider else None,
                 "strategy": strategy,
+                "indicators": self.indicator_provider()
+                if include_paper and self.indicator_provider
+                else None,
             }
         )

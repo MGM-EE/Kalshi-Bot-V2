@@ -63,7 +63,10 @@ class Features:
             buffer = history[key]
             if buffer and ts <= buffer[-1][0]:
                 continue
-            buffer.append((ts, number(value)))
+            if key != "index" and buffer and int(ts) == int(buffer[-1][0]):
+                buffer[-1] = (ts, number(value))
+            else:
+                buffer.append((ts, number(value)))
             while buffer and buffer[0][0] < ts - 600:
                 buffer.popleft()
 

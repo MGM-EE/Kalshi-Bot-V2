@@ -2,10 +2,30 @@
 
 Updated: 2026-10-18.
 
-**Current phase: 3 — strategy engine implemented; authenticated live acceptance pending.**
+**Current phase: 4 — observed indicators implemented; authenticated live acceptance pending.**
 Manual paper execution is available; real-money order submission is absent.
 The user has authorized the remaining build phases, one at a time with focused
 checks, status updates, and separate commits.
+
+## Phase 4 completed
+
+- Separate Kraken USD/coin and Kalshi USD/contract large-trade detectors using
+  fixed, prior-percentile, prior-median and spot burst definitions, bounded
+  5/15/30/60/300-second windows, CVD/VWAP/flow acceleration and confirmation.
+- Aggregated L2 persistence/replenishment with disconnect/gap resets, observed
+  pressure and potential absorption; no claims about holdings or cancellations.
+- Observed volatility/momentum/efficiency, CF crossings, transparent chop and
+  outcome-specific swing scores, confirmation/hysteresis and versioned settings.
+- Warmup, unknown direction, capacity loss and source transitions remain explicit.
+  REST samples never qualify as complete Kalshi live flow. Required unknown
+  strategy metrics block. Definitions: `docs/indicator_definitions.md`.
+- **88 tests passed, one Windows-only skipped**; Python lint and frontend build
+  passed. Focused cases cover no lookahead, units, deduplication, gaps, prior-mode
+  contamination, bounded scores, persistence, hysteresis and config validation.
+- A real 12-second check received 58/53/51 Kraken trades for BTC/ETH/SOL and
+  Kalshi REST data. Flow correctly stayed incomplete for polling; spot statistics
+  remained unavailable where six sufficiently continuous observed seconds were
+  missing. Authenticated CF-derived live scores remain unverified.
 
 ## Phase 3 completed
 
@@ -21,7 +41,7 @@ checks, status updates, and separate commits.
 - **82 tests passed, one Windows-only test skipped**; frontend build and Python
   lint passed. Strategy tests cover baseline boundaries, unknown weighted inputs,
   late revalidation, profile changes, partial targets, multiple cycles, and restarts.
-- Advanced whale/chop/swing metrics are explicitly unavailable until Phase 4.
+- Advanced whale/chop/swing metrics were subsequently added in Phase 4.
   Original extra baseline filters/exits remain unrecoverable and are not invented.
   Live strategy fills still require authenticated Kalshi/CF access.
 
@@ -162,11 +182,11 @@ was requested or performed. Fresh-task snapshot restoration is not verified.
 |---|---|
 | 2 | Implemented; authenticated live acceptance and Windows checks remain pending |
 | 3 | Implemented; original additional V1 filters/exits unavailable; live acceptance pending credentials |
-| 4 | Venue-specific whale flow, liquidity persistence, volatility, chop/swing scores and confirmation/hysteresis |
+| 4 | Implemented; authenticated CF/Kalshi flow acceptance remains pending |
 | 5 | Full decision strip/condition states, settings UI, portfolio views, confirmed-fill notifications |
 | 6 | Compact event recording, deterministic replay, strategy comparisons, analytics and performance validation |
 
-Next: Phase 4 whale/liquidity and risk indicators, then Phase 5 dashboard and Phase 6
+Next: Phase 5 dashboard, then Phase 6
 replay/analytics, as authorized. Each gets tests, this status update, and a separate
 commit. Configure PC-local Kalshi credentials for live acceptance when available.
 Commits remain local unless a push is requested.
