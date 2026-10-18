@@ -76,3 +76,19 @@ rechecks before actual paper fills. Bounded histories and batched state commits
 keep the work limited. Strategy/profile endpoints are local and use the same
 origin/host protections as paper-order controls. See PROJECT_STATUS.md for test
 results and remaining authenticated-live/Windows acceptance requirements.
+
+## Recovery and confirmed exits
+
+Entry previews require the broker's mandatory source/readiness checks before an
+intent is created. Unsupported or stale quotes remain unavailable without
+stopping exits for other assets. A recovered feed can qualify a new entry.
+
+An adverse reference crossing remains active while the observed reference stays
+on the adverse side. This survives intent submission, cancellation and restart;
+a recovered favorable reference clears it, including during fill revalidation.
+
+Only a confirmed strategy partial-target fill consumes the partial-target flag.
+Manual reductions and cancelled/unfilled orders do not consume that target for
+new position cycles. Older positions without the new flag retain legacy runtime
+handling. Automatic exits split accumulated holdings into valid per-order sizes;
+protective residual exits continue on fresh books until filled or cutoff.

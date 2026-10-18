@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+MAX_ORDER_QUANTITY = Decimal("100000")
+
 
 class PaperOrder(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -13,7 +15,7 @@ class PaperOrder(BaseModel):
     ticker: str = Field(pattern=r"^[A-Za-z0-9_.:-]{1,200}$")
     action: Literal["buy", "sell"]
     outcome: Literal["yes", "no"]
-    quantity: Decimal = Field(gt=0, le=100000, decimal_places=2)
+    quantity: Decimal = Field(gt=0, le=MAX_ORDER_QUANTITY, decimal_places=2)
     limit_price: Decimal = Field(gt=0, lt=1, decimal_places=4)
     mode: Literal["marketable", "passive"] = "marketable"
     max_cost: Decimal | None = Field(default=None, gt=0, decimal_places=4)

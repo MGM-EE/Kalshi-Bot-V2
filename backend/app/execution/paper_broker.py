@@ -84,7 +84,7 @@ class PaperBroker:
             raise ValueError("Limit is outside the contract's current tick grid")
         if (
             not market.get("fees_verified_at")
-            or now - market["fees_verified_at"] > 60
+            or not -5 <= now - market["fees_verified_at"] <= 60
             or now >= market.get("fees_valid_until", 0)
         ):
             raise ValueError("Fresh effective series/event fee metadata required")
@@ -389,6 +389,7 @@ class PaperBroker:
                 position["opened_at"] = now
                 position["cycle_id"] = order["id"]
                 position["strategy_context"] = order.get("strategy_context")
+                position["partial_target_taken"] = False
             position["cycle_entry_cost"] = number(position.get("cycle_entry_cost", 0)) + cost
             if number(order["filled_quantity"]) == 0:
                 round_state["entries"] += 1
@@ -408,6 +409,8 @@ class PaperBroker:
             account["cash"] = number(account["cash"]) + proceeds
             position["quantity"] = number(position["quantity"]) - qty
             position["cost_basis"] = number(position["cost_basis"]) - basis
+            if (order.get("strategy_context") or {}).get("action") == "SELL_PARTIAL":
+                position["partial_target_taken"] = True
             order["proceeds"] = number(order["proceeds"]) + proceeds
             self.realize(account, position, round_state, realized, now)
         account["fees"] = number(account["fees"]) + fee.net
@@ -560,15 +563,20 @@ class PaperBroker:
     @paper_operation("settle")
     def settle(self, ticker, official_market):
         """Only exchange-reported final binary results, never spot/index extrapolation."""
+        now = self.clock()
+        try:
+            closed = timestamp(official_market.get("close_time"))
+            settled = timestamp(official_market.get("settlement_ts"))
+        except (ValueError, OverflowError) as exc:
+            raise ValueError("Valid official settlement timestamps required") from exc
         if (
             official_market.get("ticker") != ticker
             or official_market.get("status") not in {"finalized", "settled"}
             or official_market.get("result") not in {"yes", "no"}
             or not official_market.get("settlement_ts")
-            or timestamp(official_market["close_time"]) > self.clock()
+            or not closed <= settled <= now
         ):
             raise ValueError("Final exchange-reported binary settlement required")
-        now = self.clock()
         with self.db.transaction():
             existing = self.db.one("SELECT data FROM settlements WHERE ticker=?", (ticker,))
             if existing:
@@ -624,10 +632,16 @@ class PaperBroker:
             target = self.state.assets[position["asset"]]
             if not target["market"] or target["market"]["ticker"] != position["ticker"]:
                 continue
+            market = target["market"]
+            if (
+                market["status"] not in {"active", "open"}
+                or not market["open_time"] <= now < market["close_time"]
+            ):
+                continue
             source = self.state.sources.get(f"kalshi:{position['asset']}:book", {})
             exchange_ts = source.get("exchange_ts")
             if (
-                now - source.get("received_at", 0) > self.config.max_data_age_seconds
+                not -5 <= now - source.get("received_at", 0) <= self.config.max_data_age_seconds
                 or source.get("status") not in {"live", "polling"}
                 or (
                     exchange_ts is not None
@@ -635,8 +649,11 @@ class PaperBroker:
                 )
             ):
                 continue
-            market = target["market"]
-            if market.get("fees_verified_at") is None or now >= market.get("fees_valid_until", 0):
+            if (
+                market.get("fees_verified_at") is None
+                or not -5 <= now - market["fees_verified_at"] <= 60
+                or now >= market.get("fees_valid_until", 0)
+            ):
                 continue
             try:
                 plan = taker_plan(
@@ -647,7 +664,7 @@ class PaperBroker:
                     Decimal("0.0001"),
                     market["price_ranges"],
                     self.config,
-                    lambda s, p: ZERO,
+                    lambda s, p: self.db.debt(position["ticker"], s, p),
                 )
                 accumulator = ZERO
                 for leg in plan:

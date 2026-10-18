@@ -4,7 +4,7 @@ import hashlib
 from decimal import ROUND_FLOOR, Decimal
 
 from ..execution.fill_model import adverse_price
-from ..execution.models import PaperOrder
+from ..execution.models import MAX_ORDER_QUANTITY, PaperOrder
 from ..markets.orderbook import number
 from ..risk.limits import remaining, validate_order
 from ..storage.database import encode
@@ -164,6 +164,7 @@ class StrategyEngine:
         if limit is None:
             return None, None
         maximum = min(
+            MAX_ORDER_QUANTITY,
             profile.sizing.maximum_quantity,
             profile.risk.max_quantity,
             self.broker.limits.max_quantity,
@@ -209,6 +210,12 @@ class StrategyEngine:
             strategy_version=profile.identifier,
             reason=f"BUY {market['outcome_mapping'][outcome]} — configured entry rules confirmed",
         )
+        try:
+            # Missing mandatory feeds must also block the signal episode, so
+            # recovery can qualify an entry without consuming a rejected intent.
+            self.broker.market(spec, now)
+        except ValueError:
+            return None, None
         return spec, value
 
     def _confirmations(self, profile, metrics, runtime, now):
@@ -443,7 +450,9 @@ class StrategyEngine:
             market = self.broker.state.assets[asset]["market"]
             key = "exit:" + position.get("cycle_id", position["ticker"] + outcome)
             runtime = self.store.read(key) or {}
-            if number(position["quantity"]) < number(
+            if "partial_target_taken" in position:
+                runtime["partial_taken"] = position["partial_target_taken"]
+            elif number(position["quantity"]) < number(
                 runtime.get("last_quantity", position["quantity"])
             ):
                 runtime["partial_taken"] = True
@@ -514,9 +523,11 @@ class StrategyEngine:
                 and source > runtime.get("last_attempt_source", 0)
                 and now - runtime.get("last_attempt_at", 0) >= 1
             ):
-                quantity = (number(position["quantity"]) * result["fraction"]).quantize(
-                    Decimal(".01"), rounding=ROUND_FLOOR
-                )
+                quantity = min(
+                    number(position["quantity"]) * result["fraction"],
+                    self.broker.limits.max_quantity,
+                    MAX_ORDER_QUANTITY,
+                ).quantize(Decimal(".01"), rounding=ROUND_FLOOR)
                 if quantity == 0:
                     quantity = number(position["quantity"])
                 runtime["attempt"] = runtime.get("attempt", 0) + 1

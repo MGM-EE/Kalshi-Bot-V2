@@ -1,7 +1,8 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
-from ..execution.fees import fill_fee
+from ..execution.fees import fee_rate, fill_fee
 from ..execution.fill_model import taker_plan
+from ..markets.discovery import timestamp
 from ..markets.orderbook import number
 from .conditions import evaluate_rules
 
@@ -10,6 +11,36 @@ def quote(broker, asset, outcome, action, quantity, limit, now, use_debt=True):
     target = broker.state.assets[asset]
     market = target["market"]
     if not market or not market.get("price_ranges"):
+        return None
+    if (
+        market["status"] not in {"active", "open"}
+        or not market["open_time"] <= now < market["close_time"]
+    ):
+        return None
+    verified = market.get("fees_verified_at")
+    if not verified or not -5 <= now - verified <= 60 or now >= market.get("fees_valid_until", 0):
+        return None
+    source = broker.state.sources.get(f"kalshi:{asset}:book", {})
+    received = source.get("received_at")
+    exchanged = source.get("exchange_ts")
+    if (
+        source.get("status") not in {"live", "polling"}
+        or received is None
+        or not -5 <= now - received <= broker.config.max_data_age_seconds
+        or (
+            exchanged is not None
+            and not -5 <= now - exchanged <= broker.config.max_data_age_seconds
+        )
+    ):
+        return None
+    try:
+        fee_rate(market.get("fee_type"), market.get("fee_multiplier"))
+        if (
+            market.get("fee_waiver_expiration_time")
+            and timestamp(market["fee_waiver_expiration_time"]) > now
+        ):
+            return None
+    except (ValueError, InvalidOperation):
         return None
     book = target["kalshi"].get("book", {})
     if not book.get("valid"):

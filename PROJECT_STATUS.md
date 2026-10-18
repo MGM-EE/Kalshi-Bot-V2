@@ -7,6 +7,23 @@ Manual paper execution is available; real-money order submission is absent.
 The user has authorized the remaining build phases, one at a time with focused
 checks, status updates, and separate commits.
 
+## Post-build hardening checkpoint
+
+- Reference-cross exits survive revalidation, cancellation and restart; a favorable
+  recovery clears the trigger. Accumulated holdings exit in valid order sizes.
+- Only confirmed partial-target fills consume the target for new position cycles.
+  Manual reductions and cancelled orders do not; legacy flags remain compatible.
+- Mandatory feed/fee readiness gates signals before submission and recovers cleanly.
+  Unsupported fees on one asset no longer strand another asset's exits.
+- Conservative marks exclude closed/paused markets, future/stale metadata and
+  consumed depth. Settlement requires coherent finite close/settlement timestamps.
+- **128 tests passed; one Windows-only skipped.** Lint, TypeScript build and
+  Chromium checks passed. Six extended synthetic runs covered **3,600 actions,
+  2,678 fills, 726 maker fills and 180 settlements** across three fee models/two
+  precisions, with independent ledger audits and exact replay.
+- Fresh real Kraken capture: **2,169 events**, exact replay, zero failed cycles.
+  No authenticated CF or live paper fills claimed. Windows/key acceptance remains.
+
 ## Phase 6 completed
 
 - Opt-in, fresh-account gzip recording with normalized patches, original source

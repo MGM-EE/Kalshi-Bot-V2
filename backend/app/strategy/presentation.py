@@ -161,8 +161,14 @@ def exit_conditions(profile, position, market, estimate, metrics, runtime, now):
     )
     previous, signed = runtime.get("signed_distance"), metrics.get("signed_distance")
     crossed = (
-        Decimal(int(number(previous) >= 0 > signed))
-        if previous is not None and signed is not None
+        Decimal(
+            int(
+                signed < 0
+                and (runtime.get("reference_cross_active", False) or number(previous) >= 0)
+            )
+        )
+        if signed is not None
+        and (previous is not None or runtime.get("reference_cross_active", False))
         else None
     )
     add(

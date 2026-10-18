@@ -43,6 +43,10 @@ def evaluate_exit(
     previous_signed = state.get("signed_distance")
     if metrics.get("signed_distance") is not None:
         state["signed_distance"] = metrics["signed_distance"]
+        state["reference_cross_active"] = metrics["signed_distance"] < 0 and (
+            state.get("reference_cross_active", False)
+            or (previous_signed is not None and number(previous_signed) >= 0)
+        )
     state["peak_bid"] = max(number(state.get("peak_bid", bid)), bid)
     state["peak_profit"] = max(number(state.get("peak_profit", pnl)), pnl)
     if pnl >= settings.protection_trigger:
@@ -72,9 +76,8 @@ def evaluate_exit(
             reversals.append(reason)
     if (
         settings.reference_cross_enabled
-        and previous_signed is not None
         and metrics.get("signed_distance") is not None
-        and number(previous_signed) >= 0 > metrics["signed_distance"]
+        and state.get("reference_cross_active", False)
     ):
         reversals.append("Adverse reference-line crossing")
     if (

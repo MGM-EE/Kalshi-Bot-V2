@@ -1,5 +1,6 @@
 """Conservative directional mapping from explicit outcome labels and contract rules."""
 
+import math
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -15,11 +16,17 @@ AVERAGE_RULE = re.compile(
 
 def timestamp(value):
     if isinstance(value, (int, float, Decimal)):
-        return float(value)
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        raise ValueError("Exchange timestamp must include a timezone")
-    return parsed.timestamp()
+        result = float(value)
+    elif isinstance(value, str):
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            raise ValueError("Exchange timestamp must include a timezone")
+        result = parsed.timestamp()
+    else:
+        raise ValueError("Exchange timestamp is missing or invalid")
+    if not math.isfinite(result):
+        raise ValueError("Exchange timestamp must be finite")
+    return result
 
 
 def normalize_market(raw, series, asset):

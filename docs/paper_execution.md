@@ -99,3 +99,26 @@ together; use SQLite's backup API online or stop the app before copying them.
 Focused tests: `python -m pytest tests/test_paper.py -q` in the virtual environment.
 Real public-data checks verified fee metadata/depth and safe missing-CF rejection.
 Authenticated live fills remain unverified until signing credentials are supplied.
+
+## Hardening checks
+
+Conservative marks exclude paused/closed markets, future/stale source or fee
+timestamps, and depth already consumed by paper fills. After cutoff an unsettled
+position has no executable liquidation value; official settlement is separate.
+Settlement requires finite, parseable timestamps satisfying close time <=
+settlement time <= observed current time, plus the existing final binary result
+checks. Unavailable or inconsistent metadata cannot create a payout.
+
+Seeded synthetic stress is separate from live market acceptance:
+
+```bash
+.venv/bin/python -m pytest tests/test_exit_recovery.py tests/test_paper_stress.py -q
+KALSHI_STRESS_STEPS=600 KALSHI_STRESS_AUDIT_INTERVAL=10 .venv/bin/python -m pytest tests/test_paper_stress.py -q -s
+```
+
+The six cases cover three fee models and two cash precisions, using three fixed
+seeds across BTC/ETH/SOL. They reconstruct cash, fee-inclusive basis, inventory,
+realized P&L, reservations, round counters and consumed depth from the ledger,
+and verify exact replay. Extended runs audit every configured number of actions
+and at round boundaries; the default audits every action. Synthetic profits or
+losses from these tests do not measure strategy performance.
