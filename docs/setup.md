@@ -59,15 +59,17 @@ network settings are applied. Success requires actual data, recognized market
 rules, and current CF references for all assets. Missing required data exits 2.
 It does not silently replace required streams with fixtures or REST snapshots.
 
-## Phase 2 paper runtime
+## Paper runtime · phases 1–6
 
 The backend opens `data/paper.sqlite3` on startup and retains it across restarts.
-It starts the manual paper-order worker and read-only official settlement reconciler.
-Automatic strategy entries and real-money execution remain disabled. The dashboard
-includes manual paper controls and portfolio/order state. A buy without current
+It starts the paper strategy/execution worker and read-only official settlement reconciler.
+New accounts start with automatic entries paused; saved controls persist across
+restarts. Real-money execution is absent. The dashboard includes versioned rule
+settings, observed indicators, paper controls, portfolio and replay analytics. A buy without current
 CF and venue data is rejected without changing cash or positions.
 
-Defaults are validated from `config/paper.json`; `PAPER_CONFIG_PATH` and
+Initial defaults are validated from `config/paper.json`; subsequent versioned
+execution/risk settings in SQLite take precedence. `PAPER_CONFIG_PATH` and
 `PAPER_DATABASE_PATH` optionally select local files. Do not delete an existing DB
 or overwrite balances during setup. Existing balances override the new-account
 starting balance. Existing account precision cannot silently change. Stop the
@@ -75,5 +77,16 @@ backend before file-copy backups, or use SQLite's online backup API.
 
 Local startup readiness now includes `GET /api/paper/portfolio`: it must report
 `PAPER ONLY`, persisted cash/positions, and current order state. `/api/health`
-reports phase 2, `paper_api_available=true`, and `real_order_execution_enabled=false`.
+reports phase 6, `paper_api_available=true`, and `real_order_execution_enabled=false`.
 Paper accounting tests use isolated databases and do not reset the actual portfolio.
+
+For Windows, `scripts/configure_kalshi.bat` stores the API key ID and downloaded
+private signing key using current-user DPAPI. Start the app on that PC to keep
+credentials local; this cloud cannot read the PC store. See
+[local credentials](local_credentials.md). This app uses authentication for data
+subscriptions and signed reads; it contains no real-order submission transport.
+
+See [dashboard/settings](dashboard.md) and [record/replay](replay_analytics.md).
+Recording is opt-in, starts at launch with a fresh isolated account, and requires
+clean shutdown. Do not run test orders against a user's persisted paper account
+merely to check startup. Tests and acceptance checks use separate accounts.

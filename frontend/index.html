@@ -26,7 +26,7 @@
     #connection{font-size:12px}.strip-values{justify-content:space-between;margin:8px 0;font:12px ui-monospace,monospace}.strip-values span{display:grid;gap:3px}.strip-values b{color:#91aac2;font-size:10px}
     .condition-row{display:flex;gap:8px;align-items:center;margin:4px 0;font-size:11px}.condition-row>strong{width:30px;flex-shrink:0}.tiles{gap:4px;flex-wrap:nowrap;overflow:auto}
     .tile{font:10px ui-monospace,monospace;white-space:nowrap;border-radius:3px;padding:4px 6px;border:1px solid #435265}.green{color:#7ee5b0;background:#173d30}.red{color:#ffabb3;background:#46232c}.yellow{color:#ffdf8d;background:#473b23}.gray{color:#a6b2c3;background:#293241}
-    #current-decision{font:12px ui-monospace,monospace;margin-top:8px}#fill-alert{font:12px ui-monospace,monospace;color:#d9fff1}
+    #replay-results{overflow:auto}select[multiple]{min-width:220px}#current-decision{font:12px ui-monospace,monospace;margin-top:8px}#fill-alert{font:12px ui-monospace,monospace;color:#d9fff1}
     .flash-buy{animation:buy-fill 1.4s ease-out}.flash-sell{animation:sell-fill 1.4s ease-out}@keyframes buy-fill{from{background:#1d6846}to{background:#101c2a}}@keyframes sell-fill{from{background:#464889}to{background:#101c2a}}
     @media(prefers-reduced-motion:reduce){.flash-buy,.flash-sell{animation:none}}
     .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:10px}.settings-grid>details{grid-column:1/-1}.settings-grid input{width:auto;min-width:0}.setting-row{border:1px solid #345;padding:8px;margin:6px}.settings-grid label{overflow:hidden}
@@ -106,6 +106,17 @@
       <details><summary>Markets and data sources · credentials</summary><p id="credential-status"></p><p class="muted">BTC, ETH and SOL 15-minute contracts use Kalshi; spot uses Kraken. Run scripts/configure_kalshi.bat on your Windows PC to import the Kalshi API ID and signing PEM into the encrypted current-user store. Restart the local app after saving. Keys never go into this browser. Kraken spot is never a settlement value.</p></details>
       <p id="settings-result" role="status"></p>
     </section>
+    <section><details id="research-panel"><summary>Analytics · deterministic replay and strategy comparisons</summary>
+      <p class="muted">LIVE PAPER ACCOUNT analytics count completed position cycles, including partial exits and official settlements. Empty samples remain unavailable. Paper results do not establish profitability.</p>
+      <button id="analytics-refresh" type="button">Refresh account analytics / recordings</button><div id="analytics-summary"></div>
+      <label>Performance breakdown<select id="analytics-group"><option value="by_asset">Asset</option><option value="by_strategy">Strategy</option><option value="by_entry_timing">Entry timing</option><option value="by_purchase_price">Purchase price</option><option value="by_whale_regime">Whale regime</option><option value="by_chop_regime">Chop regime</option><option value="by_exit_reason">Exit reason</option><option value="by_exit_remaining">Remaining time at exit</option></select></label><div id="analytics-breakdown"></div>
+      <p id="recording-status"></p>
+      <p class="muted">Start a fresh recorded account with scripts/start_windows.bat --record session_name, or python scripts/launch.py --record session_name. Stop it cleanly before replaying. Recordings stay on the machine running the app.</p>
+      <form id="replay-form"><label>Completed recording<select id="replay-file"></select></label><label>Research period<select id="replay-period"><option value="development">Development</option><option value="validation">Validation</option><option value="out-of-sample">Out of sample</option></select></label>
+        <label>Compare profiles (optional, up to 3)<select id="replay-profiles" multiple size="5"></select></label><button>Run isolated replay</button></form>
+      <p class="muted">The period label is your research designation. Use disjoint recordings and freeze profiles before out-of-sample evaluation. Comparisons require strategy-only recordings; manual orders cannot be attributed to a different strategy.</p>
+      <p id="replay-status" role="status"></p><div id="replay-results"></div><button id="replay-export" type="button" disabled>Export replay audit JSON</button>
+    </details></section>
     <section><details><summary>Source health and diagnostics</summary><div id="health"></div><div id="sources"></div></details></section>
     <section><h2>Research events · confirmed fills</h2><div id="research-events"></div><details><summary>Connection events</summary><div id="events"></div></details></section>
   </main>

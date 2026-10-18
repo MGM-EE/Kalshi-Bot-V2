@@ -23,6 +23,8 @@ class State:
         self.stale_seconds = stale_seconds
         self.clock = clock or (lambda: time.time())
         self.replay = False
+        self.record_event = None
+        self.in_cycle = False
         self.sources = {}
         self.assets = {
             asset: {"market": None, "upcoming": [], "kalshi": {}, "kraken": {}} for asset in ASSETS
@@ -84,7 +86,7 @@ class State:
                 else "DISCONNECTED / PAUSED",
                 "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
                 "real_order_execution_enabled": False,
-                "phase": 5,
+                "phase": 6,
                 "timestamp": now,
                 "sources": health,
                 "assets": self.assets,

@@ -14,7 +14,8 @@ labeled as polling every five seconds.
   complementary Kalshi books, Kraken decimal-preserving CRC32 validation.
 - `state.py`: bounded current state, separate channel health, clock-drift/stale states.
 - `frontend/`: small compiled TypeScript client, source-health table and expandable
-  depth/rules/trades. No frontend credentials or trading actions.
+  depth/rules/trades, decisions, settings, paper controls and replay reports.
+  No credentials enter the frontend.
 - `tests/`: deterministic synthetic protocol fixtures and local WebSocket transport
   tests; `scripts/live_check.py` separately checks actual feeds.
 
@@ -28,24 +29,36 @@ fills, fee accumulators, counters, liquidity debt, and official settlements.
 `execution/` and `risk/` are separate from connectors; the broker makes no network
 requests. A worker processes pending/passive paper orders, and a separate worker
 only reads official settlement data. The dashboard exposes manual paper controls;
-automatic strategies await Phase 3.
+automatic strategies use immutable profiles and pinned position criteria.
 
 Rule parsing supports explicit 60-second CF opening/closing comparison language,
 known asset index IDs, and consistent strike comparisons. Unsupported wording
 stays unverified. The contract strike, current CF tick, trailing average, partial
 closing average, and official settlement result are distinct values. A partial
-average is not a forecast or a settlement. No forecast is produced in Phase 1.
+average is not a forecast or a settlement. No settlement forecast is produced.
 
-## Remaining sequence
+## Strategy, indicators and research
 
-1. Finish authenticated live Phase 1 acceptance, then request approval.
-2. Paper engine implemented; complete authenticated live acceptance when credentials exist.
-3. Immutable BASELINE V1 and versioned configurable entry/exit profiles. No legacy
-   filters were available in this originally empty repository; recover and document
-   them before claiming full baseline equivalence.
-4. Whale/liquidity persistence, volatility, chop, swing risk.
-5. Full decision strip, conditions, settings, portfolio, event notifications.
-6. Recording/replay, matched strategy evaluation, analytics, performance validation.
+`strategy/` evaluates source-aware strict/weighted conditions, confirmations,
+allocation and ordered adaptive exits. Intent IDs and signal state commit together
+before dispatch; restart retries the same ID. Unknown required metrics block.
+Profiles pin existing position criteria; the immutable baseline contains only
+rules actually recovered from the brief. No missing historical filters are invented.
 
-Each phase has focused tests, a status update, and a Git commit. Stop for user
-approval before starting the next phase. Do not add real-money execution.
+`indicators/` keeps separate venue units, bounded histories, observed L2 persistence
+and transparent volatility/chop/swing rule scores. Configuration versions restart
+warmup. UI snapshots share the same observation clock; they do not manufacture
+fresh source ticks or fill prices.
+
+`research/` records normalized input patches and logical operation times in a
+bounded gzip writer. Replays use isolated SQLite and the same trading classes.
+Exact replays verify ledger/config/decision fingerprints; comparisons substitute
+one profile over matched inputs. Fee-aware analytics group full position cycles,
+including partial exits and official settlements. Development, validation and
+out-of-sample recording periods must be selected independently by the researcher.
+
+Each of the six implementation phases has focused tests, a status update and a
+separate local commit. The user authorized continuation through the remaining
+phases. Authenticated live acceptance and Windows execution remain external
+checks; implementation completion does not imply either passed. See
+`PROJECT_STATUS.md` for evidence. No real-money execution is implemented.

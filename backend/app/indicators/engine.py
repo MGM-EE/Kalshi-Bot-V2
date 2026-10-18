@@ -207,8 +207,8 @@ class IndicatorEngine:
                 except (ValueError, TypeError, KeyError, ArithmeticError):
                     continue
 
-    def asset_snapshot(self, asset, now):
-        bucket = int(now * 4)
+    def asset_snapshot(self, asset, now, advance=True):
+        bucket = int(now * 4), advance
         cached = self.cache.get(asset)
         if cached and cached[0] == bucket:
             return cached[1]
@@ -227,7 +227,7 @@ class IndicatorEngine:
         stats = price_statistics(self.features.history[asset]["spot"], now, 60)
         short = price_statistics(self.features.history[asset]["spot"], now, 15)
         line = self.line[asset]
-        crossings = sum(now - ts <= 60 for ts in line["crossings"])
+        crossings = sum(0 <= now - ts <= 60 for ts in line["crossings"])
         index_ready = (
             len(self.features.history[asset]["index"]) >= 6
             and line["last_ts"] is not None
@@ -245,9 +245,22 @@ class IndicatorEngine:
             if self.features.history[asset]["spot"]
             else now
         )
-        chop_state = self.risk_states[(asset, "chop")].update(
-            chop["score"] if chop else None, source_ts
-        )
+
+        def risk_state(key, score):
+            risk = self.risk_states[(asset, key)]
+            if advance:
+                return risk.update(score, source_ts)
+            if score is None:
+                return "INSUFFICIENT DATA"
+            return (
+                risk.state
+                if risk.state != "INSUFFICIENT DATA"
+                else "CONFIRMING"
+                if risk.candidate
+                else "INSUFFICIENT DATA"
+            )
+
+        chop_state = risk_state("chop", chop["score"] if chop else None)
         swings = {}
         for outcome in ("yes", "no"):
             score = None
@@ -261,7 +274,15 @@ class IndicatorEngine:
             ):
                 book = target["kalshi"].get("book", {})
                 bids, asks = book.get(outcome + "_bids", []), book.get(outcome + "_asks", [])
-                if bids and asks and book.get("valid"):
+                book_source = self.state.sources.get(f"kalshi:{asset}:book", {})
+                book_ts = book_source.get("exchange_ts")
+                book_ts = book_source.get("received_at") if book_ts is None else book_ts
+                book_fresh = (
+                    book_source.get("status") in {"live", "polling"}
+                    and book_ts is not None
+                    and 0 <= now - book_ts <= book_source.get("stale_after", 15)
+                )
+                if bids and asks and book.get("valid") and book_fresh:
                     direction = 1 if market["outcome_mapping"][outcome] == "UP" else -1
                     momentum = stats["momentum_percent"].get("5") if stats else None
                     adverse = (
@@ -281,9 +302,7 @@ class IndicatorEngine:
                     )
             swings[outcome] = {
                 "value": score,
-                "state": self.risk_states[(asset, outcome)].update(
-                    score["score"] if score else None, source_ts
-                ),
+                "state": risk_state(outcome, score["score"] if score else None),
             }
         book = target["kraken"].get("book", {})
         bid_size = sum((number(q) for _, q in book.get("bids", [])), Decimal(0))
@@ -412,4 +431,4 @@ class IndicatorEngine:
         return result
 
     def snapshot(self, now):
-        return {asset: self.asset_snapshot(asset, now) for asset in ASSETS}
+        return {asset: self.asset_snapshot(asset, now, advance=False) for asset in ASSETS}

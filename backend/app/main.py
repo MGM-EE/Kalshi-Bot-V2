@@ -1,5 +1,8 @@
 import asyncio
+import re
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
@@ -17,6 +20,10 @@ from .execution.service import open_broker, paper_worker, settlement_worker
 from .indicators.config import IndicatorConfig
 from .indicators.engine import IndicatorEngine
 from .indicators.features import Features
+from .research.analytics import analytics
+from .research.clock import EventClock
+from .research.recorder import Recorder
+from .research.replay import replay
 from .settings import ROOT, Settings
 from .state import State, wire
 from .strategy.engine import StrategyEngine
@@ -25,7 +32,7 @@ from .strategy.profiles import METRICS, Profile
 
 def create_app(settings=None, connect_live=True):
     settings = settings or Settings.from_env()
-    state = State(settings.stale_seconds)
+    state = State(settings.stale_seconds, EventClock())
     features = Features(state)
     state.observers.append(features.observe)
 
@@ -37,11 +44,28 @@ def create_app(settings=None, connect_live=True):
         indicators = IndicatorEngine(state, features, broker.db)
         features.advanced = indicators
         state.observers.append(indicators.observe)
-        state.indicator_provider = lambda: indicators.snapshot(broker.clock())
+
+        def indicator_snapshot():
+            with state.clock.at():
+                if state.record_event:
+                    state.record_event("indicator_snapshot", {})
+                return indicators.snapshot(broker.clock())
+
+        state.indicator_provider = indicator_snapshot
         app.state.indicators = indicators
         strategy = StrategyEngine(broker, features)
         app.state.strategy_engine = strategy
         state.strategy_provider = strategy.snapshot
+        recorder = None
+        if settings.recording_path:
+            try:
+                recorder = Recorder(settings.recording_path, state, broker, strategy, indicators)
+            except BaseException:
+                broker.db.close()
+                raise
+            state.record_event = recorder.event
+            state.observers.append(recorder.observe)
+        app.state.recorder = recorder
         tasks = [asyncio.create_task(paper_worker(broker, state, strategy))]
         kalshi = Kalshi(state, settings)
         if connect_live:
@@ -56,6 +80,10 @@ def create_app(settings=None, connect_live=True):
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+            state.record_event = None
+            if recorder:
+                state.observers.remove(recorder.observe)
+                recorder.close()
             state.paper_provider = None
             state.strategy_provider = None
             state.indicator_provider = None
@@ -70,6 +98,23 @@ def create_app(settings=None, connect_live=True):
     app.state.market_state = state
     app.state.paper_broker = None
     app.state.strategy_engine = None
+
+    replay_lock = asyncio.Lock()
+    recording_directory = (
+        Path(settings.recording_path).parent
+        if settings.recording_path
+        else ROOT / "data" / "recordings"
+    )
+
+    class ReplayRequest(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        file: str
+        profiles: list[Profile] = []
+        period: Literal["development", "validation", "out-of-sample"] = "development"
+
+    def record_command(kind, data):
+        if state.record_event:
+            state.record_event(kind, data)
 
     class StrategyControl(BaseModel):
         model_config = ConfigDict(extra="forbid")
@@ -141,9 +186,11 @@ def create_app(settings=None, connect_live=True):
     @app.post("/api/indicators/config", dependencies=[Depends(local_write)])
     async def update_indicators(value: IndicatorUpdate):
         try:
-            return app.state.indicators.save_config(
+            result = app.state.indicators.save_config(
                 value.config, value.acknowledge_open_positions
             ).model_dump(mode="json")
+            record_command("indicators", value.model_dump(mode="json"))
+            return result
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
 
@@ -151,6 +198,7 @@ def create_app(settings=None, connect_live=True):
     async def save_profile(profile: Profile):
         try:
             saved = app.state.strategy_engine.store.save_profile(profile)
+            record_command("profile", saved.model_dump(mode="json"))
             return {"profile": saved.model_dump(mode="json"), "identifier": saved.identifier}
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
@@ -158,7 +206,9 @@ def create_app(settings=None, connect_live=True):
     @app.post("/api/strategy/control", dependencies=[Depends(local_write)])
     async def strategy_control(value: StrategyControl):
         try:
-            return app.state.strategy_engine.control(**value.model_dump(exclude_none=True))
+            result = app.state.strategy_engine.control(**value.model_dump(exclude_none=True))
+            record_command("control", value.model_dump(exclude_none=True))
+            return result
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
@@ -177,9 +227,55 @@ def create_app(settings=None, connect_live=True):
     @app.post("/api/settings/execution", dependencies=[Depends(local_write)])
     async def execution_update(value: ExecutionSettings):
         try:
-            return save(broker(), value)
+            result = save(broker(), value)
+            record_command("execution", value.model_dump(mode="json"))
+            return result
         except ValueError as exc:
             raise HTTPException(409, str(exc)) from exc
+
+    @app.get("/api/research/decisions")
+    async def research_decisions():
+        with broker().db.lock:
+            return broker().db.many("SELECT data FROM strategy_decisions ORDER BY id DESC LIMIT 50")
+
+    @app.get("/api/research/analytics")
+    async def research_analytics():
+        with broker().db.lock:
+            return wire(analytics(broker().db))
+
+    @app.get("/api/research/recordings")
+    async def recordings():
+        active = app.state.recorder
+        return {
+            "recorder": active.status() if active else {"configured": False, "state": "off"},
+            "files": [
+                p.name
+                for p in sorted(recording_directory.glob("*.jsonl.gz"))
+                if p.is_file() and not p.is_symlink()
+            ],
+        }
+
+    @app.post("/api/research/replay", dependencies=[Depends(local_write)])
+    async def research_replay(value: ReplayRequest):
+        if not re.fullmatch(r"[A-Za-z0-9_-]+[.]jsonl[.]gz", value.file) or len(value.profiles) > 3:
+            raise HTTPException(422, "Choose a listed recording and at most three profiles")
+        path = recording_directory / value.file
+        if not path.is_file() or path.is_symlink():
+            raise HTTPException(404, "Recording not found")
+        active = app.state.recorder
+        if active and not active.closed and path.resolve() == active.path.resolve():
+            raise HTTPException(409, "Stop the recorded app cleanly before replaying its file")
+        if replay_lock.locked():
+            raise HTTPException(409, "A replay is already running")
+        async with replay_lock:
+            try:
+                profiles = [None] + [p.model_dump(mode="json") for p in value.profiles]
+                results = []
+                for profile in profiles:
+                    results.append(await asyncio.to_thread(replay, path, profile, value.period))
+                return {"mode": "REPLAY", "results": results}
+            except (ValueError, KeyError, OSError, TypeError) as exc:
+                raise HTTPException(422, str(exc)) from exc
 
     @app.get("/api/health")
     async def health():
@@ -189,7 +285,7 @@ def create_app(settings=None, connect_live=True):
         )
         return {
             "application": "ok",
-            "phase": 5,
+            "phase": 6,
             "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
             "paper_api_available": True,
             "real_order_execution_enabled": False,

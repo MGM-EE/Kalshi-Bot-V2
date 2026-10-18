@@ -2,10 +2,48 @@
 
 Updated: 2026-10-18.
 
-**Current phase: 5 — dashboard implemented; authenticated live acceptance pending.**
+**Current phase: 6 — all six build phases implemented; external acceptance pending.**
 Manual paper execution is available; real-money order submission is absent.
 The user has authorized the remaining build phases, one at a time with focused
 checks, status updates, and separate commits.
+
+## Phase 6 completed
+
+- Opt-in, fresh-account gzip recording with normalized patches, original source
+  times, timer cycles, controls/config versions, account/indicator observations,
+  bounded background writer, integrity footer and failure visibility.
+- Isolated deterministic replay through the same features/indicators/strategy/
+  broker classes; matching code and exact ledger/config/decision fingerprints.
+  Corrupt, incomplete and out-of-order inputs fail. No replay connector exists.
+- Matched strategy comparisons, dataset hashes, explicit research-period labels,
+  cycle performance reports and JSON audit exports through CLI and dashboard.
+- Full-ledger cycle analytics including partial exits/settlement, net expectancy,
+  fees/slippage, observed/realized drawdown, asset/timing/price/whale/chop/exit
+  breakdowns, durable decision transitions, rejections and observed blocked signals.
+- Dashboard reads are pure: confirmation state and account peaks advance in the
+  backend, with recorded mark cycles. Stale exchange books/expired fees cannot
+  inflate conservative valuations.
+- Trade audits now retain actual entry metrics, reference/line, indicator version,
+  executable quotes, source ages, pinned criteria, fees/slippage and exit reasons.
+- **99 Python tests passed, one Windows-only skipped**; lint/build passed. After
+  final diagnostics and read-only UI fixes, the full suite passed again. Cases cover exact manual/automatic replay, partial targets/settlement,
+  no future fill improvements, changed profile outcomes, restart settings, file
+  corruption, rollover deletion, queue overflow and source invalidation.
+- Real live recording: **4,690 events / 175,092 compressed bytes / 25.81 seconds**;
+  exact replay in **0.18 seconds**, 214 cycles, zero failed cycles, cycle p95
+  **0.30 ms**. Kraken trades/statistics arrived for BTC/ETH/SOL. Kalshi's public
+  API returned no current open markets in this interval; no CF or fills were
+  claimed. A final post-read-only-fix capture also reproduced **2,038 events**
+  exactly (108 cycles, zero failures). Earlier real REST/book evidence remains
+  recorded in prior checkpoints.
+- Synthetic 10,000-event stress fixture: source-update pair p95 **0.043 ms**,
+  all-asset snapshot p95 **20.23 ms**, 4.51s runtime. Separate allocation tracing
+  measured **8.16 MiB** peak and increased timings substantially. These are
+  host-specific measurements, not live acceptance or performance guarantees.
+- Linux launcher exit/isolated recording replay passed. Chromium verified replay
+  results and unchanged live cash/order count, compact/mobile UI and fill alerts,
+  with zero browser exceptions. Windows shutdown remains unverified.
+- See `docs/replay_analytics.md`; no sufficient profitability dataset was collected.
 
 ## Phase 5 completed
 
@@ -185,9 +223,10 @@ CF tick in this session.
 
 Saved `install_script`, `start_skill`, additive runtime variable requirements for
 the Kalshi key ID/local key path, and required API/documentation network hosts.
-Existing package-manager presets were preserved. Phase 2 startup instructions
-retain the isolated checkout and database, start only local paper execution, and
-keep automatic strategies/real-money execution disabled. `kalshi.com` was added
+Existing package-manager presets were preserved. Updated phase 6 startup instructions
+retain the checkout, accounts and recordings, inspect persisted strategy controls,
+and explain local credentials, isolated replay and pending acceptance. Real-money
+execution remains absent; new paper accounts start paused. `kalshi.com` was added
 to the preserved custom allowlist to read the official fee schedule.
 
 Draft persistence was confirmed. Review and save the configuration in environment
@@ -195,7 +234,7 @@ settings, then publish when appropriate. Saving a draft does not itself publish
 the environment or provision the signing key. The Git commit is local; no push
 was requested or performed. Fresh-task snapshot restoration is not verified.
 
-## Remaining phases
+## Remaining acceptance by phase
 
 | Phase | Remaining work |
 |---|---|
@@ -203,9 +242,24 @@ was requested or performed. Fresh-task snapshot restoration is not verified.
 | 3 | Implemented; original additional V1 filters/exits unavailable; live acceptance pending credentials |
 | 4 | Implemented; authenticated CF/Kalshi flow acceptance remains pending |
 | 5 | Implemented; Windows and authenticated live end-to-end acceptance remain pending |
-| 6 | Compact event recording, deterministic replay, strategy comparisons, analytics and performance validation |
+| 6 | Implemented and tested; sufficient authenticated research/validation/out-of-sample datasets still need collection |
 
-Next: Phase 6
-replay/analytics, as authorized. Each gets tests, this status update, and a separate
-commit. Configure PC-local Kalshi credentials for live acceptance when available.
-Commits remain local unless a push is requested.
+Next acceptance steps:
+
+1. On the Windows PC, run `scripts/configure_kalshi.bat`, select the downloaded
+   signing key and enter its API key ID; restart `scripts/start_windows.bat`.
+   The app uses signed data authentication, not a login password or real orders.
+   No key should be sent in chat. Cloud cannot read the PC's encrypted store.
+2. Run Windows self-tests, then authenticated live feed acceptance across a real
+   market/rollover. Confirm CF permissions, fresh references and paper fills on
+   an intentionally isolated research account. Current live acceptance is pending.
+3. Collect disjoint recorded development/validation/out-of-sample data before
+   assessing strategy performance. Recover original unavailable baseline filters
+   before claiming full equivalence to any earlier strategy.
+4. Review/save the saved cloud configuration draft in environment settings, then
+   publish when desired. Draft persistence is confirmed; publication/restoration
+   is not. Local-only commit restoration remains unverified.
+
+All phase commits remain local; no push or real-money action was requested or
+performed. Medium is sufficient for routine credential/platform setup; High is
+appropriate for later strategy, risk or replay changes.

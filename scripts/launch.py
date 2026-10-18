@@ -1,5 +1,8 @@
 """Local launcher; Ctrl+C terminates only the backend started by this process."""
 
+import argparse
+import os
+import re
 import signal
 import subprocess
 import sys
@@ -10,7 +13,22 @@ from pathlib import Path
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--record",
+        help="Start a new isolated recorded paper session (letters, digits, underscore, hyphen)",
+    )
+    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
+    child_env = os.environ.copy()
+    if args.record:
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", args.record):
+            parser.error("Invalid session name")
+        recording = root / "data" / "recordings" / f"{args.record}.jsonl.gz"
+        account = root / "data" / "sessions" / f"{args.record}.sqlite3"
+        if recording.exists() or account.exists():
+            parser.error("Choose a new session name; existing recordings/accounts are preserved")
+        child_env.update(RECORDING_PATH=str(recording), PAPER_DATABASE_PATH=str(account))
     if not (root / "frontend/dist/app.js").exists():
         raise SystemExit("UI is not built. Run the documented setup first.")
     # Do not accidentally launch a second app on an occupied port.
@@ -35,6 +53,8 @@ def main():
             "8000",
         ],
         cwd=root,
+        env=child_env,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,
     )
     try:
         for _ in range(100):
@@ -55,9 +75,9 @@ def main():
         pass
     finally:
         if child.poll() is None:
-            child.terminate()
+            child.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGINT)
             try:
-                child.wait(timeout=5)
+                child.wait(timeout=15)
             except subprocess.TimeoutExpired:
                 child.kill()
                 child.wait()

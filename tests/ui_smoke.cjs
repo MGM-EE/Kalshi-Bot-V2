@@ -36,10 +36,23 @@ const assert=require('node:assert/strict');
  await page.locator('#fields-copy').evaluate(n=>n.click());
  assert(!await page.locator('#profile-fields input').first().isDisabled());
  assert((await page.locator('#indicator-fields input').count())>40);
+ await page.locator('#research-panel').evaluate(n=>n.open=true);
+ await page.waitForFunction(()=>document.getElementById('analytics-summary').textContent.includes('Closed trades'));
+ await page.waitForSelector('#replay-file option',{state:'attached'});
+ const recording=await page.locator('#replay-file option').evaluateAll(options=>options.filter(o=>o.value.startsWith('ui_acceptance_')).at(-1)?.value);
+ if(recording){
+   const before=await (await page.request.get(base+'/api/paper/portfolio')).json();
+   await page.locator('#replay-file').selectOption(recording);
+   await page.getByRole('button',{name:'Run isolated replay'}).click();
+   await page.waitForFunction(()=>document.getElementById('replay-status').textContent.startsWith('REPLAY complete'));
+   assert((await page.locator('#replay-results').textContent()).includes('VERIFIED'));
+   const after=await (await page.request.get(base+'/api/paper/portfolio')).json();
+   assert.equal(after.cash,before.cash);assert.equal(after.orders.length,before.orders.length);
+ }
  assert.equal(errors.length,0,errors.join('\n'));
  await page.screenshot({path:'/tmp/kalshi-dashboard-desktop.png',fullPage:false});
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/kalshi-dashboard-mobile.png'});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'mobile viewport overflow');
- console.log(JSON.stringify({desktopStripHeight:height,duplicateFillSuppressed:true,alertsToggle:true,settingsFields:true,pageErrors:errors}));
+ console.log(JSON.stringify({desktopStripHeight:height,duplicateFillSuppressed:true,alertsToggle:true,settingsFields:true,replayVerified:Boolean(recording),pageErrors:errors}));
  await browser.close();
 })().catch(e=>{console.error(e);process.exit(1);});

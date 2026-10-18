@@ -3,7 +3,8 @@
 Live market-data and paper-execution terminal for BTC, ETH, and SOL. Python 3.12+,
 FastAPI, asyncio, Decimal books, SQLite accounting, and a small TypeScript dashboard.
 Manual controls and optional strategy automation submit paper orders only.
-Automatic entries start paused; enable a selected profile explicitly in the UI.
+New accounts start paused; enable a selected profile explicitly in the UI.
+Saved controls persist across restarts; inspect the selected profile and pause state.
 No real-money order transport or mock runtime feed exists.
 
 ## Run
@@ -50,8 +51,17 @@ Cash, positions, orders, reservations, fees, and fills persist in
 `data/paper.sqlite3`. Do not delete it to restart. Defaults are in
 [config/paper.json](config/paper.json); optional `PAPER_CONFIG_PATH` and
 `PAPER_DATABASE_PATH` select local files. Starting balance applies only to a new
-account. See [paper mechanics](docs/paper_execution.md).
+account. Settings saved in SQLite take precedence over initial JSON defaults.
+See [paper mechanics](docs/paper_execution.md).
 Strategy rules and profile behavior are described in [strategy rules](docs/strategy_rules.md).
+
+The [dashboard guide](docs/dashboard.md) covers condition tiles and editable fields;
+[indicator definitions](docs/indicator_definitions.md) document observed scores.
+Start a fresh recorded research account with `scripts/start_windows.bat --record
+session_name` (or `.venv/bin/python scripts/launch.py --record session_name`). Stop
+cleanly, then use Analytics / replay to validate an exact ledger reproduction and
+compare profiles. See [replay and analytics](docs/replay_analytics.md) for commands,
+period separation, audit exports and limitations.
 
 ## Verify
 

@@ -36,7 +36,7 @@ class Features:
             history["no"].clear()
             self.rounds[asset] = ticker
         health = self.state.sources[source]
-        ts = health["exchange_ts"] or health["received_at"]
+        ts = health["received_at"] if health["exchange_ts"] is None else health["exchange_ts"]
         if health["status"] not in {"live", "polling"}:
             return
         rows = []

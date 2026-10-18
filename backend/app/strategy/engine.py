@@ -26,9 +26,14 @@ class StrategyEngine:
         self.last_tick = None
         self._collecting = False
         self._writes, self._intents = {}, {}
+        self._decisions = []
         with self.db.transaction():
             self.db.connection.execute(
                 "CREATE TABLE IF NOT EXISTS strategy_intents(id TEXT PRIMARY KEY,status TEXT,data TEXT NOT NULL)"
+            )
+        with self.db.transaction():
+            self.db.connection.execute(
+                "CREATE TABLE IF NOT EXISTS strategy_decisions(id INTEGER PRIMARY KEY AUTOINCREMENT,data TEXT NOT NULL)"
             )
         broker.strategy_guard = self.guard
         broker.strategy_fill_guard = self.fill_guard
@@ -236,6 +241,7 @@ class StrategyEngine:
             return
         self.last_tick = now
         self._writes, self._intents = {}, {}
+        self._decisions = []
         self._collecting = True
         try:
             self._tick_body()
@@ -243,6 +249,10 @@ class StrategyEngine:
             self._collecting = False
         # Confirmation/latch state and intents commit together before any order is submitted.
         with self.db.transaction():
+            for decision in self._decisions:
+                self.db.connection.execute(
+                    "INSERT INTO strategy_decisions(data) VALUES(?)", (encode(decision),)
+                )
             for key, runtime in self._writes.items():
                 self.store.write(key, runtime)
             for order_id, data in self._intents.items():
@@ -369,6 +379,16 @@ class StrategyEngine:
                             "entry_key": key,
                             "episode": runtime["episode"],
                             "conditions": result,
+                            "observations": {
+                                "time": now,
+                                "remaining_seconds": market["close_time"] - now,
+                                "metrics": metrics,
+                                "indicator_version": self.features.advanced.config.version
+                                if self.features.advanced
+                                else None,
+                                "opening_reference": market.get("opening_reference"),
+                                "current_index": market.get("current_index"),
+                            },
                         }
                         self._persist(key, runtime)
                         self._intent(order_id, spec, context)
@@ -376,6 +396,35 @@ class StrategyEngine:
                     result["operational_state"] = "PAUSED — monitoring only"
                 elif has_position or pending or cooldown:
                     result["operational_state"] = "Existing position/order or reentry cooldown"
+                signature = hashlib.sha256(
+                    encode(
+                        [
+                            result["eligible"],
+                            result["reason"],
+                            result.get("operational_state"),
+                            [(c["metric"], c["state"]) for c in result["conditions"]],
+                        ]
+                    ).encode()
+                ).hexdigest()
+                if signature != runtime.get("last_decision_signature"):
+                    self._decisions.append(
+                        dict(
+                            time=now,
+                            asset=asset,
+                            ticker=market["ticker"],
+                            outcome=outcome,
+                            profile=profile.identifier,
+                            side="entry",
+                            eligible=result["eligible"],
+                            confirmed=runtime.get("qualified", False),
+                            blocked_without_order=bool(
+                                runtime.get("qualified") and (has_position or pending or cooldown)
+                            ),
+                            metrics=metrics,
+                            decision=result,
+                        )
+                    )
+                    runtime["last_decision_signature"] = signature
                 self.views[asset]["entries"][outcome] = result
                 self._persist(key, runtime)
         self.exits(now, control)
@@ -429,6 +478,23 @@ class StrategyEngine:
                 profile, position, market, estimate, metrics, runtime, now
             )
             result["profile"] = profile.identifier
+            exit_signature = hashlib.sha256(
+                encode([result["action"], result["reason"]]).encode()
+            ).hexdigest()
+            if exit_signature != runtime.get("last_decision_signature"):
+                self._decisions.append(
+                    dict(
+                        time=now,
+                        asset=asset,
+                        ticker=position["ticker"],
+                        outcome=outcome,
+                        profile=profile.identifier,
+                        side="exit",
+                        metrics=metrics,
+                        decision={k: v for k, v in result.items() if k != "state"},
+                    )
+                )
+                result["state"]["last_decision_signature"] = exit_signature
             runtime.update(result["state"])
             runtime["last_quantity"] = position["quantity"]
             self.views.setdefault(asset, {}).setdefault("exits", {})[outcome] = {

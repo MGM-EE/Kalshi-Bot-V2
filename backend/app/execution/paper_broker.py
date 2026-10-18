@@ -7,6 +7,7 @@ from decimal import ROUND_FLOOR, Decimal
 
 from ..markets.discovery import timestamp
 from ..markets.orderbook import number
+from ..research.clock import paper_operation
 from ..risk.limits import remaining, reservation, validate_order
 from ..storage.database import encode
 from .fees import fee_rate, fill_fee
@@ -96,6 +97,7 @@ class PaperBroker:
         book_levels(target["kalshi"].get("book", {}), spec.outcome, spec.action)
         return market, target["kalshi"]["book"]
 
+    @paper_operation("submit")
     def submit(self, spec, strategy_context=None):
         spec = PaperOrder.model_validate(spec)
         payload = spec.model_dump(mode="json")
@@ -187,6 +189,7 @@ class PaperBroker:
             self.db.save_order(order)
             return self.db.order(order["id"])
 
+    @paper_operation("cancel")
     def cancel(self, order_id):
         with self.db.transaction():
             order = self.db.order(order_id)
@@ -435,6 +438,31 @@ class PaperBroker:
             "strategy_version": spec.strategy_version,
             "reason": spec.reason,
             "strategy_context": order.get("strategy_context"),
+            "cycle_id": position.get("cycle_id"),
+            "market_observation": {
+                "remaining_seconds": market["close_time"] - now,
+                "opening_reference": market.get("opening_reference"),
+                "current_index": market.get("current_index"),
+                "partial_final_minute_average": market.get("partial_final_minute_average"),
+                "outcome_mapping": market.get("outcome_mapping"),
+                "bid": self.state.assets[spec.asset]["kalshi"]["book"].get(
+                    spec.outcome + "_bids", []
+                )[:1],
+                "ask": self.state.assets[spec.asset]["kalshi"]["book"].get(
+                    spec.outcome + "_asks", []
+                )[:1],
+                "sources": {
+                    key: {
+                        **value,
+                        "receive_age_seconds": now - value["received_at"],
+                        "exchange_age_seconds": None
+                        if value["exchange_ts"] is None
+                        else now - value["exchange_ts"],
+                    }
+                    for key, value in self.state.sources.items()
+                    if f":{spec.asset}:" in key
+                },
+            },
         }
         self.db.connection.execute(
             "INSERT INTO fills(order_id,data) VALUES(?,?)", (order["id"], encode(fill))
@@ -529,6 +557,7 @@ class PaperBroker:
                             )
                     self.db.save_order(order)
 
+    @paper_operation("settle")
     def settle(self, ticker, official_market):
         """Only exchange-reported final binary results, never spot/index extrapolation."""
         if (
@@ -586,7 +615,7 @@ class PaperBroker:
             self.db.save_round(round_state)
             return result
 
-    def mark_account(self, now):
+    def mark_account(self, now, persist=True):
         account, value = self.db.account(), ZERO
         for position in self.db.positions():
             qty = number(position["quantity"])
@@ -596,11 +625,19 @@ class PaperBroker:
             if not target["market"] or target["market"]["ticker"] != position["ticker"]:
                 continue
             source = self.state.sources.get(f"kalshi:{position['asset']}:book", {})
-            if now - source.get("received_at", 0) > self.config.max_data_age_seconds or source.get(
-                "status"
-            ) not in {"live", "polling"}:
+            exchange_ts = source.get("exchange_ts")
+            if (
+                now - source.get("received_at", 0) > self.config.max_data_age_seconds
+                or source.get("status") not in {"live", "polling"}
+                or (
+                    exchange_ts is not None
+                    and not -5 <= now - exchange_ts <= self.config.max_data_age_seconds
+                )
+            ):
                 continue
             market = target["market"]
+            if market.get("fees_verified_at") is None or now >= market.get("fees_valid_until", 0):
+                continue
             try:
                 plan = taker_plan(
                     target["kalshi"].get("book", {}),
@@ -633,12 +670,21 @@ class PaperBroker:
         peak = max(number(daily.get(day, {}).get("peak_equity", equity)), equity)
         daily[day] = {"peak_equity": peak}
         account["daily"] = dict(sorted(daily.items())[-7:])
-        self.db.save_account(account)
+        all_time_peak = max(
+            number(account.get("equity_peak_all_time", account["starting_balance"])), equity
+        )
+        account["equity_peak_all_time"] = all_time_peak
+        account["maximum_observed_drawdown"] = max(
+            number(account.get("maximum_observed_drawdown", 0)), all_time_peak - equity
+        )
+        if persist:
+            self.db.save_account(account)
         return equity, peak
 
+    @paper_operation("portfolio")
     def portfolio(self):
         with self.db.transaction():
-            equity, peak = self.mark_account(self.clock())
+            equity, peak = self.mark_account(self.clock(), persist=False)
             account, active, positions = self.db.account(), self.db.active(), self.db.positions()
             committed = sum((number(p["cost_basis"]) for p in positions), ZERO)
             reserved = sum((reservation(o) for o in active), ZERO)

@@ -53,7 +53,11 @@ def exit_conditions(profile, position, market, estimate, metrics, runtime, now):
         source="Kalshi executable bid / paper ledger",
     ):
         passed = value is not None and (
-            value >= threshold if operator == ">=" else value <= threshold
+            value >= threshold
+            if operator == ">="
+            else value < threshold
+            if operator == "<"
+            else value <= threshold
         )
         rows.append(
             dict(
@@ -121,7 +125,7 @@ def exit_conditions(profile, position, market, estimate, metrics, runtime, now):
     add(
         "exit_depth_ratio",
         estimate["quantity"] / qty if estimate and qty else None,
-        "<=",
+        "<",
         settings.minimum_exit_depth_ratio,
         settings.liquidity_exit_enabled,
         "fraction",
@@ -136,7 +140,9 @@ def exit_conditions(profile, position, market, estimate, metrics, runtime, now):
     )
     add(
         "trailing_profit_drop",
-        number(runtime.get("peak_profit", pnl)) - pnl if pnl is not None else None,
+        number(runtime.get("peak_profit", pnl)) - pnl
+        if pnl is not None and number(runtime.get("peak_profit", pnl)) > 0
+        else None,
         ">=",
         settings.trailing_profit_drop,
         settings.trailing_profit_enabled,
@@ -144,7 +150,10 @@ def exit_conditions(profile, position, market, estimate, metrics, runtime, now):
     )
     add(
         "protected_profit",
-        pnl if runtime.get("protection_armed") else None,
+        pnl
+        if runtime.get("protection_armed")
+        or (pnl is not None and pnl >= settings.protection_trigger)
+        else None,
         "<=",
         settings.protected_profit,
         settings.protection_enabled,

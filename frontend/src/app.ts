@@ -262,3 +262,5 @@ document.getElementById("fields-save")!.onclick=()=>{
   document.getElementById("profile-save")!.click();
 };
 void loadSettings();
+
+import "./research.js";

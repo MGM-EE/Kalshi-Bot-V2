@@ -18,23 +18,39 @@ def open_broker(state, settings):
     database = Database(settings.paper_database_path)
     try:
         saved = initialize(database, data)
-        return PaperBroker(database, state, saved.execution, saved.risk)
+        return PaperBroker(database, state, saved.execution, saved.risk, clock=state.clock)
     except BaseException:
         database.close()
         raise
 
 
 async def paper_worker(broker, state, strategy=None):
-    last_run, last_heartbeat = 0, 0
+    last_run, last_heartbeat, last_mark = 0, 0, None
     while True:
         state.changed.clear()
         if time.monotonic() - last_run < 0.05:
             await asyncio.sleep(0.05)
         try:
-            if strategy is not None:
-                strategy.tick()
-            if broker.db.active():
-                broker.process()
+            with broker.clock.at():
+                cycle_error = None
+                mark = last_mark is None or broker.clock() - last_mark >= 0.25
+                state.in_cycle = True
+                try:
+                    if mark:
+                        with broker.db.transaction():
+                            broker.mark_account(broker.clock())
+                        last_mark = broker.clock()
+                    if strategy is not None:
+                        strategy.tick()
+                    if broker.db.active():
+                        broker.process()
+                except Exception as exc:
+                    cycle_error = type(exc).__name__
+                    raise
+                finally:
+                    state.in_cycle = False
+                    if state.record_event:
+                        state.record_event("cycle", {"error": cycle_error, "mark_account": mark})
             if time.monotonic() - last_heartbeat >= 5:
                 state.health(
                     "paper:engine",

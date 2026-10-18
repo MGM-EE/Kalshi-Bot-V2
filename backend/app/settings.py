@@ -20,6 +20,7 @@ class Settings:
     rest_seconds: float = 5
     paper_database_path: str = str(ROOT / "data" / "paper.sqlite3")
     paper_config_path: str = str(ROOT / "config" / "paper.json")
+    recording_path: str = ""
 
     @classmethod
     def from_env(cls):
@@ -32,4 +33,5 @@ class Settings:
             paper_config_path=os.environ.get(
                 "PAPER_CONFIG_PATH", str(ROOT / "config" / "paper.json")
             ),
+            recording_path=os.environ.get("RECORDING_PATH", ""),
         )
