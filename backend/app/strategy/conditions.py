@@ -56,6 +56,7 @@ def evaluate_rules(rules, metrics, mode="STRICT", weighted_threshold=70, confirm
                 "value": value,
                 "state": state,
                 "threshold": rule.threshold,
+                "operator": rule.operator,
                 "upper": rule.upper,
                 "reason": reason,
                 "enabled": rule.enabled,

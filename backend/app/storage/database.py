@@ -77,6 +77,12 @@ class Database:
     def positions(self):
         return self.many("SELECT data FROM positions ORDER BY ticker,outcome")
 
+    def fills(self, limit=100):
+        rows = self.connection.execute(
+            "SELECT id,data FROM fills ORDER BY id DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [{**json.loads(data), "id": fill_id} for fill_id, data in rows]
+
     def save_position(self, data):
         self.connection.execute(
             "INSERT OR REPLACE INTO positions VALUES(?,?,?)",

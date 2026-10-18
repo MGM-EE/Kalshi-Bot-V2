@@ -7,7 +7,7 @@ import httpx
 
 from ..connectors.common import error_label
 from ..storage.database import Database
-from .models import PaperConfig, RiskLimits
+from .configuration import initialize
 from .paper_broker import PaperBroker
 
 
@@ -15,11 +15,13 @@ def open_broker(state, settings):
     data = json.loads(Path(settings.paper_config_path).read_text())
     if set(data) != {"execution", "risk"}:
         raise ValueError("Paper configuration requires execution and risk sections only")
-    config, limits = (
-        PaperConfig.model_validate(data["execution"]),
-        RiskLimits.model_validate(data["risk"]),
-    )
-    return PaperBroker(Database(settings.paper_database_path), state, config, limits)
+    database = Database(settings.paper_database_path)
+    try:
+        saved = initialize(database, data)
+        return PaperBroker(database, state, saved.execution, saved.risk)
+    except BaseException:
+        database.close()
+        raise
 
 
 async def paper_worker(broker, state, strategy=None):

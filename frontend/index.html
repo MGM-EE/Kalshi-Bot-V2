@@ -20,15 +20,40 @@
     input,select,button{font:inherit;background:#172638;color:#dbe5ef;border:1px solid #456;border-radius:4px;padding:7px}
     input{width:100px}button{cursor:pointer}button:disabled{opacity:.5;cursor:wait}#paper-values{max-width:600px}
     .offline main{opacity:.55}@media(max-width:500px){header,main{padding:12px}.grid{grid-template-columns:1fr}}
+
+    section,article{overflow:auto;min-width:0}main{overflow-wrap:anywhere}header{padding:8px 16px;min-height:160px;box-sizing:border-box;max-height:220px;overflow:auto;z-index:5}
+    .strip-heading,.strip-values,.tiles{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.strip-heading label{display:flex;align-items:center}.strip-heading select{padding:2px}
+    #connection{font-size:12px}.strip-values{justify-content:space-between;margin:8px 0;font:12px ui-monospace,monospace}.strip-values span{display:grid;gap:3px}.strip-values b{color:#91aac2;font-size:10px}
+    .condition-row{display:flex;gap:8px;align-items:center;margin:4px 0;font-size:11px}.condition-row>strong{width:30px;flex-shrink:0}.tiles{gap:4px;flex-wrap:nowrap;overflow:auto}
+    .tile{font:10px ui-monospace,monospace;white-space:nowrap;border-radius:3px;padding:4px 6px;border:1px solid #435265}.green{color:#7ee5b0;background:#173d30}.red{color:#ffabb3;background:#46232c}.yellow{color:#ffdf8d;background:#473b23}.gray{color:#a6b2c3;background:#293241}
+    #current-decision{font:12px ui-monospace,monospace;margin-top:8px}#fill-alert{font:12px ui-monospace,monospace;color:#d9fff1}
+    .flash-buy{animation:buy-fill 1.4s ease-out}.flash-sell{animation:sell-fill 1.4s ease-out}@keyframes buy-fill{from{background:#1d6846}to{background:#101c2a}}@keyframes sell-fill{from{background:#464889}to{background:#101c2a}}
+    @media(prefers-reduced-motion:reduce){.flash-buy,.flash-sell{animation:none}}
+    .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;padding:10px}.settings-grid>details{grid-column:1/-1}.settings-grid input{width:auto;min-width:0}.setting-row{border:1px solid #345;padding:8px;margin:6px}.settings-grid label{overflow:hidden}
+    .spark{height:72px;width:100%;display:block}#paper-values{max-width:none;grid-template-columns:repeat(4,1fr)}
+    .offline header .tile{color:#a6b2c3;background:#293241}.offline #current-decision{color:#ffc66d}
+    @media(max-width:700px){header{max-height:300px}.strip-values{justify-content:start}#paper-values{grid-template-columns:1fr 1fr}main{padding:10px}}
   </style>
 </head>
 <body class="offline">
-  <header><h1>KALSHI CRYPTO TERMINAL V2 · PAPER ONLY · PHASE 2</h1>
-    <div id="connection" class="warning">DISCONNECTED / PAUSED — waiting for backend</div>
-    <p class="muted">Paper orders only. Entries require verified data and configured rules. Kraken spot is never a settlement value.</p>
-    <div id="health"></div>
+  <header id="decision-strip">
+    <div class="strip-heading"><strong>KALSHI TERMINAL V2 · PAPER ONLY</strong>
+      <label>Asset<select id="selected-asset"><option>BTC</option><option>ETH</option><option>SOL</option></select></label>
+      <label>Direction<select id="selected-outcome"><option value="yes">YES</option><option value="no">NO</option></select></label>
+      <span id="connection" class="warning">DISCONNECTED / PAUSED</span><span id="strip-clock"></span>
+    </div>
+    <div id="strip-values" class="strip-values"></div>
+    <div class="condition-row"><strong>BUY</strong><div id="buy-tiles" class="tiles"></div></div>
+    <div class="condition-row"><strong>SELL</strong><div id="sell-tiles" class="tiles"></div></div>
+    <div id="current-decision" role="status">WAIT — loading verified sources</div>
+    <div id="fill-alert" role="status" aria-live="polite"></div>
   </header>
-  <main><div id="markets" class="grid"></div>
+  <main>
+    <section><details open><summary>Selected market · observed price history</summary><div id="selected-market"></div><div id="sparklines" class="grid"></div></details></section>
+    <section><details><summary>Whale activity · venue-separated observed flow</summary><div id="whales"></div></details></section>
+    <section><details><summary>Swing, chop and liquidity persistence</summary><div id="risks"></div></details></section>
+    <section><details><summary>Entry and exit diagnostics</summary><div id="condition-details"></div></details></section>
+    <details><summary>All markets · contract rules, depth and trades</summary><div id="markets" class="grid"></div></details>
     <section><h2>Strategy profiles · paper only</h2>
       <p id="strategy-control" class="muted">Automatic entries are paused by default. Open positions retain their original profile.</p>
       <form id="strategy-form"><label>Profile / version<select id="strategy-profile"></select></label>
@@ -38,6 +63,10 @@
         <button id="strategy-clear-emergency" type="button">Clear emergency</button>
       </form>
       <p id="strategy-result" role="status"></p>
+      <details><summary>Buy, sell, sizing and risk settings · no code required</summary>
+        <p class="muted">Copy a profile, edit fields, then save a new version. Existing positions keep their entry and exit profile. Decimal money fields are USD unless marked otherwise; returns are fractions (0.05 = 5%).</p>
+        <div id="profile-fields"></div><button id="fields-copy" type="button">Copy to new CUSTOM V2 version</button><button id="fields-save" type="button">Save profile fields</button>
+      </details>
       <details><summary>Versioned profile editor / JSON import and export</summary>
         <p class="muted">BASELINE V1 contains only the recovered entry rules; unavailable original filters are documented. It cannot be edited. Copy it to CUSTOM V2 to experiment. Increment version to save changes; selecting a profile never rewrites open positions.</p>
         <textarea id="profile-json" rows="18" style="width:100%;box-sizing:border-box;background:#0b1119;color:#dbe5ef" aria-label="Strategy profile JSON"></textarea>
@@ -48,7 +77,7 @@
         <div id="metric-catalog"></div>
       </details>
     </section>
-    <section><h2>Paper portfolio</h2><dl id="paper-values"></dl>
+    <section><h2>Paper portfolio</h2><dl id="paper-values"></dl><div id="positions"></div>
       <details><summary>Manual paper execution controls</summary>
         <p class="muted">Research controls only. Buys require fresh venue data and CF reference. A pending order is not a fill. Defaults and limits are in config/paper.json.</p>
         <form id="paper-form">
@@ -64,8 +93,21 @@
       </details>
       <details><summary>Paper orders and confirmed fills</summary><div id="paper-orders"></div></details>
     </section>
-    <section><h2>Source health</h2><div id="sources"></div></section>
-    <section><h2>Connection events</h2><div id="events"></div></section>
+    <section><h2>Settings</h2>
+      <details><summary>Whale detection, trend/volatility, chop and swing</summary>
+        <p class="muted">Saving an increased version resets indicator warmup. Existing positions keep their profile but future observed indicator definitions change.</p>
+        <form id="indicator-settings"><div id="indicator-fields"></div><label><input id="indicator-ack" type="checkbox">I acknowledge changed future observations for open positions</label><button>Save indicator version</button></form>
+      </details>
+      <details><summary>Paper execution and global risk limits</summary>
+        <p class="muted">Pause entries and close positions / pending orders first. Changes persist locally. Starting balance and precision are fixed for this account.</p>
+        <form id="execution-settings"><div id="execution-fields"></div><button>Save execution version</button></form>
+      </details>
+      <details><summary>Dashboard and alerts</summary><label><input id="alerts-enabled" type="checkbox" checked>Brief confirmed-fill flashes</label><p class="muted">Notifications fire once per new fill, with no sound. Reduced-motion preferences are respected.</p></details>
+      <details><summary>Markets and data sources · credentials</summary><p id="credential-status"></p><p class="muted">BTC, ETH and SOL 15-minute contracts use Kalshi; spot uses Kraken. Run scripts/configure_kalshi.bat on your Windows PC to import the Kalshi API ID and signing PEM into the encrypted current-user store. Restart the local app after saving. Keys never go into this browser. Kraken spot is never a settlement value.</p></details>
+      <p id="settings-result" role="status"></p>
+    </section>
+    <section><details><summary>Source health and diagnostics</summary><div id="health"></div><div id="sources"></div></details></section>
+    <section><h2>Research events · confirmed fills</h2><div id="research-events"></div><details><summary>Connection events</summary><div id="events"></div></details></section>
   </main>
   <script type="module" src="/static/app.js"></script>
 </body>

@@ -654,7 +654,13 @@ class PaperBroker:
                 "positions": positions,
                 "open_positions": sum(number(p["quantity"]) > 0 for p in positions),
                 "orders": self.db.many("SELECT data FROM orders ORDER BY rowid DESC LIMIT 100"),
-                "fills": self.db.many("SELECT data FROM fills ORDER BY id DESC LIMIT 100"),
+                "fills": self.db.fills(),
+                "daily_realized_pnl": account.get("daily_realized", {}).get(
+                    datetime.fromtimestamp(self.clock(), timezone.utc).date().isoformat(), ZERO
+                ),
+                "all_time_pnl_conservative": equity - number(account["starting_balance"]),
+                "return_after_fees_percent": (equity / number(account["starting_balance"]) - 1)
+                * 100,
                 "rounds": self.db.many("SELECT data FROM rounds ORDER BY rowid DESC LIMIT 100"),
                 "config": self.config.model_dump(mode="json"),
                 "limits": self.limits.model_dump(mode="json"),

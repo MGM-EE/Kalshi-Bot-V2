@@ -1,3 +1,5 @@
+import {renderTerminal, loadSettings} from "./terminal.js";
+import {settingsForm} from "./settings.js";
 type Health = {status: string; detail: string; age_seconds: number; exchange_age_seconds: number | null};
 type Book = {valid?: boolean; yes_bids?: string[][]; yes_asks?: string[][]; no_bids?: string[][];
   no_asks?: string[][]; bids?: string[][]; asks?: string[][]};
@@ -56,6 +58,7 @@ function render(data: Snapshot) {
   document.body.classList.remove("offline");
   text(document.getElementById("connection")!, `PAPER ONLY — ${data.strategy?.control.enabled && !data.strategy.control.emergency ? "automatic entries enabled; rules and data still gate fills" : "automatic entries paused"} · see source health`);
   renderPaper(data.paper);
+  renderTerminal(data);
   if (data.strategy) text(document.getElementById("strategy-control")!, `${data.strategy.control.enabled ? "ENTRIES ENABLED" : "ENTRIES PAUSED"} · ${data.strategy.control.profile_name} v${data.strategy.control.profile_version} · ${data.strategy.control.emergency ? "EMERGENCY EXIT ACTIVE" : "Pinned exits continue for existing automatic positions"}`);
   for (const [asset, value] of Object.entries(data.assets)) {
     const card = cards.get(asset); if (!card) continue;
@@ -116,7 +119,8 @@ function renderPaper(paper: Portfolio | null | undefined) {
     "Reserved cash": money(paper.reserved_cash), "Capital committed": money(paper.capital_committed),
     "Realized net P&L": money(paper.realized_pnl), "Conservative unrealized P&L": money(paper.unrealized_pnl_conservative),
     "Conservative equity": money(paper.equity_conservative), "Total fees": money(paper.fees),
-    "Open positions": String(paper.open_positions)};
+    "Open positions": String(paper.open_positions),
+    ...Object.fromEntries(Object.entries(paper as unknown as Record<string,unknown>).filter(([k])=>["starting_balance","daily_realized_pnl","all_time_pnl_conservative","return_after_fees_percent","daily_drawdown"].includes(k)).map(([k,v])=>[k.replaceAll("_"," "), String(v)]))};
   update("paper-values", node, fields, () => Object.entries(fields).flatMap(([k, v]) => [el("dt", k), el("dd", v)]));
   const orders = document.getElementById("paper-orders")!;
   update("paper-orders", orders, paper.orders, () => paper.orders.slice(0, 10).map(order => {
@@ -171,6 +175,7 @@ function connect() {
   ws.onclose = () => {
     clearInterval(timer); document.body.classList.add("offline");
     text(document.getElementById("connection")!, "DISCONNECTED / PAUSED — displayed values are stale");
+    text(document.getElementById("current-decision")!, "DISCONNECTED / PAUSED — awaiting fresh backend state");
     setTimeout(connect, Math.min(30000, 1000 * 2 ** Math.min(failures++, 5)));
   };
   ws.onerror = () => ws.close();
@@ -179,6 +184,14 @@ connect();
 
 type StrategyProfile = {name: string; version: number; [key: string]: unknown};
 let strategyProfiles: StrategyProfile[] = [];
+let profileSchema: Parameters<typeof settingsForm>[0] | null = null;
+let getProfileFields: (()=>unknown) | null = null;
+function drawProfileFields(profile: StrategyProfile) {
+  if(profileSchema) {
+    getProfileFields=settingsForm(profileSchema,profile,document.getElementById("profile-fields")!);
+    document.querySelectorAll<HTMLInputElement|HTMLSelectElement>("#profile-fields input,#profile-fields select").forEach(n=>n.disabled=profile.name==="BASELINE V1");
+  }
+}
 const selectProfile = document.getElementById("strategy-profile") as HTMLSelectElement;
 const profileEditor = document.getElementById("profile-json") as HTMLTextAreaElement;
 function selectedProfile() {return strategyProfiles[Number(selectProfile.value)];}
@@ -186,12 +199,14 @@ function editProfile() {
   const profile = selectedProfile(); if (!profile) return;
   profileEditor.value = JSON.stringify(profile, null, 2);
   profileEditor.readOnly = profile.name === "BASELINE V1";
+  drawProfileFields(profile);
 }
 async function loadProfiles() {
   try {
     const response = await fetch("/api/strategy/profiles");
     if (!response.ok) throw new Error();
     const data = await response.json(); strategyProfiles = data.profiles;
+    profileSchema=(await (await fetch("/api/settings/schema")).json()).profile;
     selectProfile.replaceChildren(...strategyProfiles.map((p, i) => {const o = el("option", `${p.name} v${p.version}`); o.value = String(i); return o;}));
     const active = strategyProfiles.findIndex(p => p.name === data.control.profile_name && p.version === data.control.profile_version);
     selectProfile.value = String(Math.max(0, active)); editProfile();
@@ -235,3 +250,15 @@ document.getElementById("profile-export")!.onclick = () => {
   catch {text(document.getElementById("strategy-result")!, "Invalid profile JSON.");}
 };
 void loadProfiles();
+
+document.getElementById("fields-copy")!.onclick=()=>{
+  const p=(getProfileFields?.()??selectedProfile()) as StrategyProfile;
+  p.name="CUSTOM V2";p.version=Math.max(0,...strategyProfiles.filter(v=>v.name===p.name).map(v=>v.version))+1;
+  drawProfileFields(p);
+};
+document.getElementById("fields-save")!.onclick=()=>{
+  if(!getProfileFields)return;
+  profileEditor.value=JSON.stringify(getProfileFields());
+  document.getElementById("profile-save")!.click();
+};
+void loadSettings();

@@ -10,6 +10,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .connectors.kalshi import Kalshi
 from .connectors.kraken import Kraken
 from .credentials import credential_status
+from .execution.configuration import ExecutionSettings, current, save
 from .execution.models import PaperOrder
 from .execution.paper_broker import IdempotencyConflict
 from .execution.service import open_broker, paper_worker, settlement_worker
@@ -161,6 +162,25 @@ def create_app(settings=None, connect_live=True):
         except ValueError as exc:
             raise HTTPException(422, str(exc)) from exc
 
+    @app.get("/api/settings/schema")
+    async def settings_schema():
+        return {
+            "profile": Profile.model_json_schema(),
+            "indicators": IndicatorConfig.model_json_schema(),
+            "execution": ExecutionSettings.model_json_schema(),
+        }
+
+    @app.get("/api/settings/execution")
+    async def execution_settings():
+        return current(broker())
+
+    @app.post("/api/settings/execution", dependencies=[Depends(local_write)])
+    async def execution_update(value: ExecutionSettings):
+        try:
+            return save(broker(), value)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
     @app.get("/api/health")
     async def health():
         # Liveness only; feed readiness is separately reported in /api/state.
@@ -169,7 +189,7 @@ def create_app(settings=None, connect_live=True):
         )
         return {
             "application": "ok",
-            "phase": 4,
+            "phase": 5,
             "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
             "paper_api_available": True,
             "real_order_execution_enabled": False,

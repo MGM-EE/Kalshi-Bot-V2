@@ -11,7 +11,8 @@ from ..storage.database import encode
 from .conditions import evaluate_rules
 from .entry import evaluate_entry, price_caps, quote
 from .exit import evaluate_exit
-from .profiles import Profile
+from .presentation import entry_constraints, exit_conditions
+from .profiles import METRICS, Profile
 from .store import StrategyStore
 
 SELL_ACTIONS = {"SELL_ALL", "SELL_PARTIAL", "CUT_LOSS", "PROTECT_PROFIT"}
@@ -278,6 +279,34 @@ class StrategyEngine:
                 result = evaluate_entry(
                     profile, metrics, market["close_time"] - now, estimate, confirmations
                 )
+                result["execution_conditions"] = entry_constraints(
+                    profile, metrics, market["close_time"] - now, estimate
+                )
+                result["source_ts"] = metrics.get("source_ts")
+                for condition in result["conditions"]:
+                    metric_key = condition["metric"]
+                    condition["unit"] = METRICS[metric_key][0]
+                    condition["source"] = (
+                        "Kalshi book / CF index"
+                        if metric_key
+                        in {
+                            "ask",
+                            "all_in_price",
+                            "spread",
+                            "depth",
+                            "distance",
+                            "distance_percent",
+                            "losing_side",
+                            "approach_velocity",
+                            "approach_positive",
+                            "observations",
+                            "data_age",
+                            "normalized_distance",
+                        }
+                        else "Kalshi trades"
+                        if metric_key == "kalshi_whale_flow"
+                        else "Kraken / observed indicators"
+                    )
                 direction = market["outcome_mapping"][outcome]
                 if direction not in profile.entry.directions:
                     result.update(eligible=False, reason="Direction disabled")
@@ -396,6 +425,10 @@ class StrategyEngine:
                 control["emergency"],
                 hard,
             )
+            result["conditions"] = exit_conditions(
+                profile, position, market, estimate, metrics, runtime, now
+            )
+            result["profile"] = profile.identifier
             runtime.update(result["state"])
             runtime["last_quantity"] = position["quantity"]
             self.views.setdefault(asset, {}).setdefault("exits", {})[outcome] = {

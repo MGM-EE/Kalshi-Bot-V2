@@ -19,8 +19,10 @@ def wire(value):
 
 
 class State:
-    def __init__(self, stale_seconds=15):
+    def __init__(self, stale_seconds=15, clock=None):
         self.stale_seconds = stale_seconds
+        self.clock = clock or (lambda: time.time())
+        self.replay = False
         self.sources = {}
         self.assets = {
             asset: {"market": None, "upcoming": [], "kalshi": {}, "kraken": {}} for asset in ASSETS
@@ -33,7 +35,7 @@ class State:
         self.observers = []
 
     def health(self, name, status, detail="", exchange_ts=None, stale_after=None):
-        now = time.time()
+        now = self.clock()
         previous = self.sources.get(name, {})
         if previous.get("status") != status or previous.get("detail") != detail:
             self.events.append({"time": now, "source": name, "status": status, "detail": detail})
@@ -49,7 +51,7 @@ class State:
             observer(name)
 
     def snapshot(self, include_paper=True):
-        now = time.time()
+        now = self.clock()
         strategy = self.strategy_provider() if include_paper and self.strategy_provider else None
         control = strategy["control"] if strategy else {}
         health = {}
@@ -70,13 +72,19 @@ class State:
                 "age_seconds": round(age, 2),
                 "exchange_age_seconds": exchange_age,
             }
-        # Automated strategies remain disabled; a heartbeat is not trading readiness.
+        live_data = any(
+            v["status"] == "live" for k, v in health.items() if k.startswith(("kalshi:", "kraken:"))
+        )
         return wire(
             {
-                "mode": "DISCONNECTED / PAUSED",
+                "mode": "REPLAY"
+                if self.replay
+                else "LIVE DATA — PAPER TRADING"
+                if live_data
+                else "DISCONNECTED / PAUSED",
                 "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
                 "real_order_execution_enabled": False,
-                "phase": 4,
+                "phase": 5,
                 "timestamp": now,
                 "sources": health,
                 "assets": self.assets,

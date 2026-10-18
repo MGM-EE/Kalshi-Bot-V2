@@ -2,10 +2,29 @@
 
 Updated: 2026-10-18.
 
-**Current phase: 4 — observed indicators implemented; authenticated live acceptance pending.**
+**Current phase: 5 — dashboard implemented; authenticated live acceptance pending.**
 Manual paper execution is available; real-money order submission is absent.
 The user has authorized the remaining build phases, one at a time with focused
 checks, status updates, and separate commits.
+
+## Phase 5 completed
+
+- Compact sticky decision strip with asset/outcome selection, real source modes,
+  thresholds/actuals, separate buy/sell conditions and prioritized decisions.
+- Expandable observed sparklines, venue-separated whale/risk/liquidity views,
+  portfolio/positions/counters, daily realized and conservative all-time P&L,
+  source ages and confirmed research events.
+- Backend-schema field editors for profiles and indicator/execution/risk settings;
+  immutable versions, pinned profile criteria and explicit open-position behavior.
+  Execution settings persist across restarts and cannot reset balance/precision.
+- Durable fill IDs drive brief buy/sell alerts once; initial history, repeated
+  frames and signals do not flash. User toggle and reduced-motion support.
+- **91 Python tests passed, one Windows-only skipped**; lint/build passed.
+  Real Chromium verified a 160px strip at 1440px, phone-width overflow handling,
+  field controls, baseline immutability, duplicate suppression and disabled flashes,
+  with zero browser exceptions. Browser notification fixtures are synthetic.
+- Actual live app/API and REST/Kraken UI startup passed with isolated database;
+  missing CF/authentication remains explicit. See `docs/dashboard.md`.
 
 ## Phase 4 completed
 
@@ -183,10 +202,10 @@ was requested or performed. Fresh-task snapshot restoration is not verified.
 | 2 | Implemented; authenticated live acceptance and Windows checks remain pending |
 | 3 | Implemented; original additional V1 filters/exits unavailable; live acceptance pending credentials |
 | 4 | Implemented; authenticated CF/Kalshi flow acceptance remains pending |
-| 5 | Full decision strip/condition states, settings UI, portfolio views, confirmed-fill notifications |
+| 5 | Implemented; Windows and authenticated live end-to-end acceptance remain pending |
 | 6 | Compact event recording, deterministic replay, strategy comparisons, analytics and performance validation |
 
-Next: Phase 5 dashboard, then Phase 6
+Next: Phase 6
 replay/analytics, as authorized. Each gets tests, this status update, and a separate
 commit. Configure PC-local Kalshi credentials for live acceptance when available.
 Commits remain local unless a push is requested.
