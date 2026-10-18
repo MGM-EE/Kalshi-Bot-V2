@@ -25,10 +25,29 @@
 <body class="offline">
   <header><h1>KALSHI CRYPTO TERMINAL V2 · PAPER ONLY · PHASE 2</h1>
     <div id="connection" class="warning">DISCONNECTED / PAUSED — waiting for backend</div>
-    <p class="muted">Automatic entries are disabled. Manual orders affect paper balances only. Kraken spot is never a settlement value.</p>
+    <p class="muted">Paper orders only. Entries require verified data and configured rules. Kraken spot is never a settlement value.</p>
     <div id="health"></div>
   </header>
   <main><div id="markets" class="grid"></div>
+    <section><h2>Strategy profiles · paper only</h2>
+      <p id="strategy-control" class="muted">Automatic entries are paused by default. Open positions retain their original profile.</p>
+      <form id="strategy-form"><label>Profile / version<select id="strategy-profile"></select></label>
+        <button id="strategy-enable" type="button">Enable paper entries</button>
+        <button id="strategy-pause" type="button">Pause new entries</button>
+        <button id="strategy-emergency" type="button">Emergency paper exit</button>
+        <button id="strategy-clear-emergency" type="button">Clear emergency</button>
+      </form>
+      <p id="strategy-result" role="status"></p>
+      <details><summary>Versioned profile editor / JSON import and export</summary>
+        <p class="muted">BASELINE V1 contains only the recovered entry rules; unavailable original filters are documented. It cannot be edited. Copy it to CUSTOM V2 to experiment. Increment version to save changes; selecting a profile never rewrites open positions.</p>
+        <textarea id="profile-json" rows="18" style="width:100%;box-sizing:border-box;background:#0b1119;color:#dbe5ef" aria-label="Strategy profile JSON"></textarea>
+        <button id="profile-copy" type="button">Copy to CUSTOM V2</button>
+        <button id="profile-save" type="button">Save new version</button>
+        <button id="profile-export" type="button">Export JSON</button>
+        <label>Import strategy JSON only<input id="profile-import" type="file" accept="application/json,.json"></label>
+        <div id="metric-catalog"></div>
+      </details>
+    </section>
     <section><h2>Paper portfolio</h2><dl id="paper-values"></dl>
       <details><summary>Manual paper execution controls</summary>
         <p class="muted">Research controls only. Buys require fresh venue data and CF reference. A pending order is not a fill. Defaults and limits are in config/paper.json.</p>

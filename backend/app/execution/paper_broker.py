@@ -25,6 +25,9 @@ class PaperBroker:
     def __init__(self, database, state, config=None, limits=None, clock=time.time):
         self.db, self.state, self.clock = database, state, clock
         self.config, self.limits = config or PaperConfig(), limits or RiskLimits()
+        self.strategy_guard = None
+        self.strategy_fill_guard = None
+        self.emergency_gate = None
         with self.db.transaction():
             if self.db.account() is None:
                 balance = self.config.starting_balance
@@ -93,7 +96,7 @@ class PaperBroker:
         book_levels(target["kalshi"].get("book", {}), spec.outcome, spec.action)
         return market, target["kalshi"]["book"]
 
-    def submit(self, spec):
+    def submit(self, spec, strategy_context=None):
         spec = PaperOrder.model_validate(spec)
         payload = spec.model_dump(mode="json")
         fingerprint = hashlib.sha256(encode(payload).encode()).hexdigest()
@@ -124,8 +127,11 @@ class PaperBroker:
                 "risk_version": self.limits.version,
                 "fill_count": 0,
                 "realized_pnl": ZERO,
+                "strategy_context": strategy_context,
             }
             try:
+                if spec.action == "buy" and self.emergency_gate and self.emergency_gate():
+                    raise ValueError("Emergency paper-entry stop is active")
                 market, book = self.market(spec, now, spec.action == "buy")
                 equity, peak = self.mark_account(now)
                 validate_order(
@@ -138,6 +144,26 @@ class PaperBroker:
                     equity,
                     peak,
                 )
+                if strategy_context:
+                    if self.strategy_guard is None:
+                        raise ValueError("Strategy validation is unavailable")
+                    self.strategy_guard(order, spec, now)
+                held = next(
+                    (
+                        p
+                        for p in self.db.positions()
+                        if p["ticker"] == spec.ticker
+                        and p["outcome"] == spec.outcome
+                        and number(p["quantity"]) > 0
+                    ),
+                    None,
+                )
+                if (
+                    spec.action == "buy"
+                    and held
+                    and held.get("strategy_context") != strategy_context
+                ):
+                    raise ValueError("Existing position has different pinned strategy criteria")
                 if spec.mode == "passive":
                     canonical = canonical_level(spec.outcome, spec.action, spec.limit_price)
                     if any(
@@ -175,6 +201,12 @@ class PaperBroker:
             return self.db.order(order_id)
 
     def revalidate_risk(self, order, spec, now):
+        if spec.action == "buy" and self.emergency_gate and self.emergency_gate():
+            raise ValueError("Emergency paper-entry stop is active")
+        if order.get("strategy_context"):
+            if self.strategy_guard is None:
+                raise ValueError("Strategy validation is unavailable")
+            self.strategy_guard(order, spec, now)
         if spec.action == "sell":
             return
         equity, peak = self.mark_account(now)
@@ -318,6 +350,11 @@ class PaperBroker:
             number(order["accumulator"]),
             Decimal(config.balance_precision),
         )
+        if order.get("strategy_context"):
+            if self.strategy_fill_guard is None or not self.strategy_fill_guard(
+                order, spec, leg, fee, now
+            ):
+                return False
         gross, account = price * qty, self.db.account()
         position = next(
             (
@@ -345,6 +382,11 @@ class PaperBroker:
                 return False
             if number(position["quantity"]) == 0:
                 position["cycle_realized"] = ZERO
+                position["cycle_entry_cost"] = ZERO
+                position["opened_at"] = now
+                position["cycle_id"] = order["id"]
+                position["strategy_context"] = order.get("strategy_context")
+            position["cycle_entry_cost"] = number(position.get("cycle_entry_cost", 0)) + cost
             if number(order["filled_quantity"]) == 0:
                 round_state["entries"] += 1
             account["cash"] = number(account["cash"]) - cost
@@ -392,6 +434,7 @@ class PaperBroker:
             "time": now,
             "strategy_version": spec.strategy_version,
             "reason": spec.reason,
+            "strategy_context": order.get("strategy_context"),
         }
         self.db.connection.execute(
             "INSERT INTO fills(order_id,data) VALUES(?,?)", (order["id"], encode(fill))
@@ -410,6 +453,7 @@ class PaperBroker:
         realized[day] = number(realized.get(day, 0)) + pnl
         account["daily_realized"] = dict(sorted(realized.items())[-7:])
         if number(position["quantity"]) == 0:
+            position["closed_at"] = now
             round_state["round_trips"] += 1
             account["consecutive_losses"] = (
                 account["consecutive_losses"] + 1 if number(position["cycle_realized"]) < 0 else 0

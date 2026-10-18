@@ -2,7 +2,8 @@
 
 Live market-data and paper-execution terminal for BTC, ETH, and SOL. Python 3.12+,
 FastAPI, asyncio, Decimal books, SQLite accounting, and a small TypeScript dashboard.
-Manual controls submit paper orders only. Automatic strategies await Phase 3.
+Manual controls and optional strategy automation submit paper orders only.
+Automatic entries start paused; enable a selected profile explicitly in the UI.
 No real-money order transport or mock runtime feed exists.
 
 ## Run
@@ -50,6 +51,7 @@ Cash, positions, orders, reservations, fees, and fills persist in
 [config/paper.json](config/paper.json); optional `PAPER_CONFIG_PATH` and
 `PAPER_DATABASE_PATH` select local files. Starting balance applies only to a new
 account. See [paper mechanics](docs/paper_execution.md).
+Strategy rules and profile behavior are described in [strategy rules](docs/strategy_rules.md).
 
 ## Verify
 

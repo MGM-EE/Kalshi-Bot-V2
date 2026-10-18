@@ -12,6 +12,7 @@ type Portfolio = {cash: string; available_cash: string; reserved_cash: string; c
   realized_pnl: string; unrealized_pnl_conservative: string; equity_conservative: string; fees: string;
   open_positions: number; orders: PaperRecord[]};
 type Snapshot = {assets: Record<string, Asset>; sources: Record<string, Health>; paper?: Portfolio | null;
+  strategy?: {control: {enabled: boolean; emergency: boolean; profile_name: string; profile_version: number}; decisions: Record<string, unknown>};
   events: {time: number; source: string; status: string; detail: string}[]};
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, text = "", cls = "") {
@@ -53,8 +54,9 @@ function quote(rows: string[][] | undefined, valid: boolean | undefined) {
 function render(data: Snapshot) {
   latest = data;
   document.body.classList.remove("offline");
-  text(document.getElementById("connection")!, "PAPER ONLY — automatic entries disabled · see per-source health");
+  text(document.getElementById("connection")!, `PAPER ONLY — ${data.strategy?.control.enabled && !data.strategy.control.emergency ? "automatic entries enabled; rules and data still gate fills" : "automatic entries paused"} · see source health`);
   renderPaper(data.paper);
+  if (data.strategy) text(document.getElementById("strategy-control")!, `${data.strategy.control.enabled ? "ENTRIES ENABLED" : "ENTRIES PAUSED"} · ${data.strategy.control.profile_name} v${data.strategy.control.profile_version} · ${data.strategy.control.emergency ? "EMERGENCY EXIT ACTIVE" : "Pinned exits continue for existing automatic positions"}`);
   for (const [asset, value] of Object.entries(data.assets)) {
     const card = cards.get(asset); if (!card) continue;
     const m = value.market, kb = value.kalshi.book, spot = value.kraken.ticker;
@@ -174,3 +176,62 @@ function connect() {
   ws.onerror = () => ws.close();
 }
 connect();
+
+type StrategyProfile = {name: string; version: number; [key: string]: unknown};
+let strategyProfiles: StrategyProfile[] = [];
+const selectProfile = document.getElementById("strategy-profile") as HTMLSelectElement;
+const profileEditor = document.getElementById("profile-json") as HTMLTextAreaElement;
+function selectedProfile() {return strategyProfiles[Number(selectProfile.value)];}
+function editProfile() {
+  const profile = selectedProfile(); if (!profile) return;
+  profileEditor.value = JSON.stringify(profile, null, 2);
+  profileEditor.readOnly = profile.name === "BASELINE V1";
+}
+async function loadProfiles() {
+  try {
+    const response = await fetch("/api/strategy/profiles");
+    if (!response.ok) throw new Error();
+    const data = await response.json(); strategyProfiles = data.profiles;
+    selectProfile.replaceChildren(...strategyProfiles.map((p, i) => {const o = el("option", `${p.name} v${p.version}`); o.value = String(i); return o;}));
+    const active = strategyProfiles.findIndex(p => p.name === data.control.profile_name && p.version === data.control.profile_version);
+    selectProfile.value = String(Math.max(0, active)); editProfile();
+    document.getElementById("metric-catalog")!.replaceChildren(table(["Metric", "Units", "Definition"], Object.entries(data.metrics).map(([k, v]) => [k, ...(v as string[])])));
+  } catch {text(document.getElementById("strategy-result")!, "Profile service unavailable; reconnect and reload to edit.");}
+}
+selectProfile.onchange = editProfile;
+async function controlStrategy(value: Record<string, unknown>) {
+  try {
+    const response = await fetch("/api/strategy/control", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(value)});
+    const result = await response.json();
+    text(document.getElementById("strategy-result")!, response.ok ? "Paper strategy control saved; see live conditions and source health." : JSON.stringify(result));
+  } catch {text(document.getElementById("strategy-result")!, "Control response unavailable; check live state before retrying.");}
+}
+document.getElementById("strategy-enable")!.onclick = () => {const p = selectedProfile(); if (p) void controlStrategy({enabled: true, profile_name: p.name, profile_version: p.version});};
+document.getElementById("strategy-pause")!.onclick = () => {void controlStrategy({enabled: false});};
+document.getElementById("strategy-emergency")!.onclick = () => {void controlStrategy({emergency: true, enabled: false});};
+document.getElementById("strategy-clear-emergency")!.onclick = () => {void controlStrategy({emergency: false});};
+document.getElementById("profile-copy")!.onclick = () => {
+  try {const p = JSON.parse(profileEditor.value); p.name = "CUSTOM V2"; p.version = Math.max(0, ...strategyProfiles.filter(v => v.name === p.name).map(v => v.version))+1;
+    profileEditor.readOnly = false; profileEditor.value = JSON.stringify(p, null, 2);
+  } catch {text(document.getElementById("strategy-result")!, "Invalid profile JSON.");}
+};
+document.getElementById("profile-save")!.onclick = async () => {
+  try {
+    const profile = JSON.parse(profileEditor.value);
+    const response = await fetch("/api/strategy/profiles", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(profile)});
+    const result = await response.json(); text(document.getElementById("strategy-result")!, response.ok ? `Saved ${result.identifier}. Select and enable it explicitly to use it.` : JSON.stringify(result));
+    if (response.ok) await loadProfiles();
+  } catch {text(document.getElementById("strategy-result")!, "Invalid JSON or profile service unavailable.");}
+};
+document.getElementById("profile-export")!.onclick = () => {
+  try {const value = JSON.stringify(JSON.parse(profileEditor.value), null, 2); const url = URL.createObjectURL(new Blob([value], {type: "application/json"}));
+    const link = el("a"); link.href = url; link.download = "strategy-profile.json"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {text(document.getElementById("strategy-result")!, "Invalid profile JSON.");}
+};
+(document.getElementById("profile-import") as HTMLInputElement).onchange = async event => {
+  const file = (event.target as HTMLInputElement).files?.[0]; if (!file) return;
+  if (file.size > 128000) {text(document.getElementById("strategy-result")!, "Profile exceeds 128 KB."); return;}
+  try {profileEditor.value = JSON.stringify(JSON.parse(await file.text()), null, 2); profileEditor.readOnly = false;}
+  catch {text(document.getElementById("strategy-result")!, "Invalid profile JSON.");}
+};
+void loadProfiles();

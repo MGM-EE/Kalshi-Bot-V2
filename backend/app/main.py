@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, ConfigDict
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .connectors.kalshi import Kalshi
@@ -12,20 +13,28 @@ from .credentials import credential_status
 from .execution.models import PaperOrder
 from .execution.paper_broker import IdempotencyConflict
 from .execution.service import open_broker, paper_worker, settlement_worker
+from .indicators.features import Features
 from .settings import ROOT, Settings
 from .state import State, wire
+from .strategy.engine import StrategyEngine
+from .strategy.profiles import METRICS, Profile
 
 
 def create_app(settings=None, connect_live=True):
     settings = settings or Settings.from_env()
     state = State(settings.stale_seconds)
+    features = Features(state)
+    state.observers.append(features.observe)
 
     @asynccontextmanager
     async def lifespan(app):
         broker = open_broker(state, settings)
         app.state.paper_broker = broker
         state.paper_provider = broker.portfolio
-        tasks = [asyncio.create_task(paper_worker(broker, state))]
+        strategy = StrategyEngine(broker, features)
+        app.state.strategy_engine = strategy
+        state.strategy_provider = strategy.snapshot
+        tasks = [asyncio.create_task(paper_worker(broker, state, strategy))]
         kalshi = Kalshi(state, settings)
         if connect_live:
             tasks += [
@@ -40,6 +49,7 @@ def create_app(settings=None, connect_live=True):
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
             state.paper_provider = None
+            state.strategy_provider = None
             broker.db.close()
 
     app = FastAPI(title="Kalshi Terminal V2 — Paper research", lifespan=lifespan)
@@ -49,6 +59,14 @@ def create_app(settings=None, connect_live=True):
     )
     app.state.market_state = state
     app.state.paper_broker = None
+    app.state.strategy_engine = None
+
+    class StrategyControl(BaseModel):
+        model_config = ConfigDict(extra="forbid")
+        enabled: bool | None = None
+        emergency: bool | None = None
+        profile_name: str | None = None
+        profile_version: int | None = None
 
     def broker():
         if app.state.paper_broker is None:
@@ -93,13 +111,39 @@ def create_app(settings=None, connect_live=True):
     async def credentials_status():
         return credential_status(settings)
 
+    @app.get("/api/strategy/profiles")
+    async def profiles():
+        return {
+            "profiles": app.state.strategy_engine.store.profiles(),
+            "metrics": METRICS,
+            "control": app.state.strategy_engine.store.read("control"),
+        }
+
+    @app.post("/api/strategy/profiles", dependencies=[Depends(local_write)])
+    async def save_profile(profile: Profile):
+        try:
+            saved = app.state.strategy_engine.store.save_profile(profile)
+            return {"profile": saved.model_dump(mode="json"), "identifier": saved.identifier}
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    @app.post("/api/strategy/control", dependencies=[Depends(local_write)])
+    async def strategy_control(value: StrategyControl):
+        try:
+            return app.state.strategy_engine.control(**value.model_dump(exclude_none=True))
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
     @app.get("/api/health")
     async def health():
         # Liveness only; feed readiness is separately reported in /api/state.
+        control = (
+            app.state.strategy_engine.store.read("control") if app.state.strategy_engine else {}
+        )
         return {
             "application": "ok",
-            "phase": 2,
-            "execution_enabled": False,
+            "phase": 3,
+            "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
             "paper_api_available": True,
             "real_order_execution_enabled": False,
         }

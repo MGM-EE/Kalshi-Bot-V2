@@ -28,6 +28,8 @@ class State:
         self.events = deque(maxlen=60)
         self.changed = asyncio.Event()
         self.paper_provider = None
+        self.strategy_provider = None
+        self.observers = []
 
     def health(self, name, status, detail="", exchange_ts=None, stale_after=None):
         now = time.time()
@@ -42,9 +44,13 @@ class State:
             "stale_after": self.stale_seconds if stale_after is None else stale_after,
         }
         self.changed.set()
+        for observer in self.observers:
+            observer(name)
 
     def snapshot(self, include_paper=True):
         now = time.time()
+        strategy = self.strategy_provider() if include_paper and self.strategy_provider else None
+        control = strategy["control"] if strategy else {}
         health = {}
         for name, raw in self.sources.items():
             age = now - raw["received_at"]
@@ -67,12 +73,14 @@ class State:
         return wire(
             {
                 "mode": "DISCONNECTED / PAUSED",
-                "execution_enabled": False,
-                "phase": 2,
+                "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
+                "real_order_execution_enabled": False,
+                "phase": 3,
                 "timestamp": now,
                 "sources": health,
                 "assets": self.assets,
                 "events": self.events,
                 "paper": self.paper_provider() if include_paper and self.paper_provider else None,
+                "strategy": strategy,
             }
         )

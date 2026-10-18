@@ -2,10 +2,28 @@
 
 Updated: 2026-10-18.
 
-**Current phase: 2 — paper engine implemented; authenticated live acceptance pending.**
+**Current phase: 3 — strategy engine implemented; authenticated live acceptance pending.**
 Manual paper execution is available; real-money order submission is absent.
 The user has authorized the remaining build phases, one at a time with focused
 checks, status updates, and separate commits.
+
+## Phase 3 completed
+
+- Immutable recovered BASELINE V1 entry rules, CUSTOM V2 and named research presets,
+  validated/versioned JSON profiles, import/export editor, and local strategy controls.
+- Strict/weighted conditions with explicit unknown/confirmation/warning states,
+  source-aware CF approach and spot features, fee/depth sizing, conditional trend
+  price caps, and actual-fill all-in cap enforcement.
+- Deterministic adaptive exit priority, net P&L, partial profit taking, trailing
+  protection, line/risk/timing rules, optional settlement holds, and pinned criteria.
+- Durable batched signal state/intents, idempotent recovery, cooldown/reentry and
+  multiple round trips. Emergency blocks all buys; pause preserves pinned exits.
+- **82 tests passed, one Windows-only test skipped**; frontend build and Python
+  lint passed. Strategy tests cover baseline boundaries, unknown weighted inputs,
+  late revalidation, profile changes, partial targets, multiple cycles, and restarts.
+- Advanced whale/chop/swing metrics are explicitly unavailable until Phase 4.
+  Original extra baseline filters/exits remain unrecoverable and are not invented.
+  Live strategy fills still require authenticated Kalshi/CF access.
 
 ## Local credential setup checkpoint
 
@@ -143,12 +161,12 @@ was requested or performed. Fresh-task snapshot restoration is not verified.
 | Phase | Remaining work |
 |---|---|
 | 2 | Implemented; authenticated live acceptance and Windows checks remain pending |
-| 3 | Immutable BASELINE V1, recover/document unavailable legacy filters, CUSTOM V2 conditions, adaptive deterministic exits, versioned settings and multiple round trips |
+| 3 | Implemented; original additional V1 filters/exits unavailable; live acceptance pending credentials |
 | 4 | Venue-specific whale flow, liquidity persistence, volatility, chop/swing scores and confirmation/hysteresis |
 | 5 | Full decision strip/condition states, settings UI, portfolio views, confirmed-fill notifications |
 | 6 | Compact event recording, deterministic replay, strategy comparisons, analytics and performance validation |
 
-Next step: securely configure Kalshi signing credentials and complete live
-acceptance using Medium reasoning. Then obtain approval for Phase 3 and use High
-for strategy logic. Keep changes within the approved phase, test them, update this
-file, and commit working changes. Commits remain local unless a push is requested.
+Next: Phase 4 whale/liquidity and risk indicators, then Phase 5 dashboard and Phase 6
+replay/analytics, as authorized. Each gets tests, this status update, and a separate
+commit. Configure PC-local Kalshi credentials for live acceptance when available.
+Commits remain local unless a push is requested.

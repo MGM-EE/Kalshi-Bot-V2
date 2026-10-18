@@ -58,3 +58,9 @@ class RiskLimits(BaseModel):
     max_loss_per_round: Decimal = Field(default=Decimal("50"), gt=0)
     max_daily_drawdown: Decimal = Field(default=Decimal("100"), gt=0)
     max_consecutive_losses: int = Field(default=5, ge=1)
+
+    @model_validator(mode="after")
+    def quantities(self):
+        if self.max_quantity < self.min_quantity:
+            raise ValueError("Maximum quantity cannot be below minimum quantity")
+        return self

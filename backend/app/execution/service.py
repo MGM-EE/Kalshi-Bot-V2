@@ -22,20 +22,22 @@ def open_broker(state, settings):
     return PaperBroker(Database(settings.paper_database_path), state, config, limits)
 
 
-async def paper_worker(broker, state):
+async def paper_worker(broker, state, strategy=None):
     last_run, last_heartbeat = 0, 0
     while True:
         state.changed.clear()
         if time.monotonic() - last_run < 0.05:
             await asyncio.sleep(0.05)
         try:
+            if strategy is not None:
+                strategy.tick()
             if broker.db.active():
                 broker.process()
             if time.monotonic() - last_heartbeat >= 5:
                 state.health(
                     "paper:engine",
                     "live",
-                    "Manual paper execution only; automatic entries disabled",
+                    "Paper execution worker; strategy control determines automatic entries",
                 )
                 last_heartbeat = time.monotonic()
         except Exception as exc:
