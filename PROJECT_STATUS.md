@@ -9,6 +9,12 @@ checks, status updates, and separate commits.
 
 ## Post-build hardening checkpoint
 
+- Added `scripts/create_desktop_shortcut.bat`: creates a Kalshi Terminal desktop
+  shortcut using Windows' Desktop location (including OneDrive). It launches the
+  existing app launcher from the project directory. Static review completed;
+  Windows shortcut creation needs verification on a Windows PC. Next step:
+  double-click the installer, then verify desktop launch on the user's PC.
+
 - Reference-cross exits survive revalidation, cancellation and restart; a favorable
   recovery clears the trigger. Accumulated holdings exit in valid order sizes.
 - Only confirmed partial-target fills consume the target for new position cycles.
