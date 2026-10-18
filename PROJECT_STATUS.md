@@ -9,6 +9,18 @@ checks, status updates, and separate commits.
 
 ## Post-build hardening checkpoint
 
+- Dashboard connection follow-up: initial connection gets 30 seconds; after frames
+  arrive the five-second freshness cutoff remains. Rendering/JSON failures now
+  report a visible display error and console details, retry the next frame, and
+  no longer silently close the socket. Stale displays retain the offline state.
+- Validation: TypeScript build, focused Chromium connection regression, existing
+  dashboard Chromium acceptance, and six backend dashboard/API tests passed.
+  A 45-second live-feed browser check received 87 frames on one socket without
+  display errors. An earlier live check reconnected once; the user's Windows
+  disconnect cause is not yet established. Next: apply UI update on the PC and
+  collect the now-visible error if disconnects continue. Backend paper execution
+  is independent of the browser connection; display warnings do not pause it.
+
 - Added `scripts/create_desktop_shortcut.bat`: creates a Kalshi Terminal desktop
   shortcut using Windows' Desktop location (including OneDrive). It launches the
   existing app launcher from the project directory. Static review completed;

@@ -168,17 +168,43 @@ form.onsubmit = async event => {
 let failures = 0;
 function connect() {
   const ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/stream`);
-  let lastFrame = Date.now();
-  const timer = setInterval(() => {if (Date.now() - lastFrame > 5000) ws.close();}, 1000);
-  ws.onmessage = event => {try {render(JSON.parse(event.data)); lastFrame = Date.now(); failures = 0;}
-    catch {ws.close();}};
+  const started = performance.now();
+  let lastFrame: number | null = null;
+  let renderingFailed = false;
+  const timer = setInterval(() => {
+    // Opening a socket is not evidence of fresh data. Allow startup time, but
+    // keep the existing five-second stale-data limit after frames arrive.
+    const expired = lastFrame === null ? performance.now() - started > 30000 : performance.now() - lastFrame > 5000;
+    if (expired) {
+      offline("DISCONNECTED / PAUSED — awaiting fresh backend state");
+      if (ws.readyState !== WebSocket.CLOSING && ws.readyState !== WebSocket.CLOSED) ws.close();
+    }
+  }, 1000);
+  ws.onmessage = event => {
+    lastFrame = performance.now();
+    try {
+      render(JSON.parse(event.data));
+      renderingFailed = false;
+      failures = 0;
+    } catch (error) {
+      // A UI exception must not masquerade as a transport failure or create a
+      // reconnect loop. Retry rendering the next frame and expose the cause.
+      if (!renderingFailed) console.error("Dashboard could not display backend state:", error);
+      renderingFailed = true;
+      offline("DISPLAY ERROR — values are stale; see browser Console; awaiting a valid update");
+    }
+  };
   ws.onclose = () => {
-    clearInterval(timer); document.body.classList.add("offline");
-    text(document.getElementById("connection")!, "DISCONNECTED / PAUSED — displayed values are stale");
-    text(document.getElementById("current-decision")!, "DISCONNECTED / PAUSED — awaiting fresh backend state");
+    clearInterval(timer);
+    offline("DISCONNECTED / PAUSED — awaiting fresh backend state");
     setTimeout(connect, Math.min(30000, 1000 * 2 ** Math.min(failures++, 5)));
   };
   ws.onerror = () => ws.close();
+}
+function offline(reason: string) {
+  document.body.classList.add("offline");
+  text(document.getElementById("connection")!, "DISCONNECTED / PAUSED — displayed values are stale");
+  text(document.getElementById("current-decision")!, reason);
 }
 connect();
 
