@@ -7,6 +7,43 @@ Manual paper execution is available; real-money order submission is absent.
 The user has authorized the remaining build phases, one at a time with focused
 checks, status updates, and separate commits.
 
+## Connectivity recovery implementation
+
+- Browser sockets now retire by ownership/deadline without depending on a close
+  event. HTTP backup has independent timeout ownership; delayed responses and old
+  socket callbacks cannot rewind the current view. Sleep/network restoration
+  triggers an immediate attempt.
+- Kalshi tracks request/channel/SID acknowledgements and snapshots independently.
+  Missing streamed books retain REST fallback. Targeted book/CF repairs have
+  deadlines, normal rollover reconciles subscriptions, capability failures stay
+  scoped, and terminal CF errors recreate CF without dropping books.
+- Discovery, fees, and fallback use independent per-asset workers with bounded
+  request/concurrency budgets and shared throttle handling. REST books cannot
+  corrupt WebSocket delta bases or overwrite newer stream health.
+- Kraken checks missing/stalled books/tickers independently of heartbeat traffic;
+  quiet trade streams do not trigger reconnects. Both venues invalidate data before
+  waiting for transport closure and require valid replacement snapshots.
+- Unexpected background worker exits restart with bounded retry and sanitized
+  diagnostics. Browser clients share one encoded projection per 250 ms, reducing
+  repeated reads; slow stream sends have a deadline. Financial code, schema,
+  configured strategy, account balance and credential store are preserved.
+- Validation: **181 Python tests passed; one Windows-only skipped**. Ruff,
+  TypeScript typecheck/build, deterministic transport fault tests, and Chromium
+  connection/overview/full dashboard checks passed. Chromium replay verified a
+  fresh matching recording with no page errors. Recovery tests include real local
+  HTTP/WebSocket faults, stuck sends/closes, partial feed stalls, rollover, metadata
+  hangs, late REST races, capability errors, and worker crashes/cancellation.
+- Real 30-second check: Kraken book/ticker/trade sources were live for all three
+  assets; Kalshi REST books/trades were polling and current. Authenticated Kalshi/CF
+  remains unavailable because the configured cloud signing-key file is missing;
+  the acceptance checker correctly exits 2. A separate follow-up observed live
+  fee metadata for all assets. No authenticated streaming success is claimed.
+- Native Windows sleep/network/DPAPI, authenticated feed recovery, and the full
+  unattended soak remain target-machine checks. This implements the recovery
+  stage; the proposed multi-process architecture remains future work. See the
+  [connectivity update](docs/connectivity_update.md) and
+  [Windows update steps](docs/windows_quick_start.md).
+
 ## Windows local accept failure checkpoint
 
 - User traceback identified WinError 64 in Windows Proactor/IOCP while accepting

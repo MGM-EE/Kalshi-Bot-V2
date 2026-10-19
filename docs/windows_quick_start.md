@@ -3,6 +3,28 @@
 The app uses paper money only. Downloading a new copy restores the program, not
 paper trades or recordings deleted from your PC.
 
+## Updating an existing installation
+
+1. Stop the old backend with **Ctrl+C** in its terminal and wait for shutdown.
+2. Make a backup copy of its entire `data` folder. Keep the old program folder
+   with old recordings; replay checks the matching backend version.
+3. Download the latest ZIP from the build link below and extract it to a new,
+   permanent folder outside OneDrive.
+4. Copy the old `data` folder into the new program folder **before first launch**.
+   Copy your custom configuration too if you use one. Keep any configured external
+   account/configuration paths pointing to their existing files.
+5. Run **START_HERE.bat** in the new folder to install/build the updated files and
+   recreate the desktop shortcut. Then run **OPEN_TERMINAL.bat**.
+
+The Windows-encrypted API key is stored outside the installation folder and can
+be reused by the same Windows user. Re-import it only if the status panel says it
+is missing or cannot be unlocked. Use only one running backend for an account.
+The new recovery code takes effect only after restarting the old backend and
+rebuilding the dashboard; refreshing a browser connected to the old app is insufficient.
+
+See [what changed in connectivity](connectivity_update.md) for recovery behavior
+and remaining Windows/authenticated-feed acceptance checks.
+
 ## 1. Download and extract
 
 Open [the recovery build on GitHub](https://github.com/MGM-EE/Kalshi-Bot-V2/tree/build/kalshi-terminal-v2),

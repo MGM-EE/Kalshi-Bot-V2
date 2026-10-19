@@ -1,0 +1,86 @@
+{
+  "observations": {
+    "BTC": {
+      "market": "KXBTC15M-26OCT182045-45",
+      "outcome_mapping": {
+        "yes": "UP",
+        "no": "DOWN"
+      },
+      "kraken_spot": "82052.0",
+      "kraken_trades": 73,
+      "kalshi_trades": 100,
+      "kalshi_book_valid": true
+    },
+    "ETH": {
+      "market": "KXETH15M-26OCT182045-45",
+      "outcome_mapping": {
+        "yes": "UP",
+        "no": "DOWN"
+      },
+      "kraken_spot": "2406.09",
+      "kraken_trades": 60,
+      "kalshi_trades": 100,
+      "kalshi_book_valid": true
+    },
+    "SOL": {
+      "market": "KXSOL15M-26OCT182045-45",
+      "outcome_mapping": {
+        "yes": "UP",
+        "no": "DOWN"
+      },
+      "kraken_spot": "103.92",
+      "kraken_trades": 52,
+      "kalshi_trades": 100,
+      "kalshi_book_valid": true
+    }
+  },
+  "source_status": {
+    "kalshi:socket": "unavailable",
+    "kraken:BTC:book": "live",
+    "kraken:BTC:ticker": "live",
+    "kraken:BTC:trade": "live",
+    "kraken:ETH:book": "live",
+    "kraken:ETH:ticker": "live",
+    "kraken:ETH:trade": "live",
+    "kraken:SOL:book": "live",
+    "kraken:SOL:ticker": "live",
+    "kraken:SOL:trade": "stale",
+    "kalshi:BTC:fees": "live",
+    "kalshi:BTC:book": "stale",
+    "kalshi:BTC:ticker": "unavailable",
+    "kalshi:BTC:trade": "stale",
+    "kalshi:BTC:reference": "unavailable",
+    "kalshi:BTC:discovery": "live",
+    "kraken:socket": "live",
+    "kalshi:ETH:fees": "live",
+    "kalshi:ETH:book": "stale",
+    "kalshi:ETH:ticker": "unavailable",
+    "kalshi:ETH:trade": "stale",
+    "kalshi:ETH:reference": "unavailable",
+    "kalshi:ETH:discovery": "live",
+    "kalshi:SOL:fees": "live",
+    "kalshi:SOL:book": "stale",
+    "kalshi:SOL:ticker": "unavailable",
+    "kalshi:SOL:trade": "stale",
+    "kalshi:SOL:reference": "unavailable",
+    "kalshi:SOL:discovery": "live"
+  },
+  "blockers": [
+    "BTC: current CF Benchmarks reference unavailable",
+    "kalshi:BTC:book: stale",
+    "kalshi:BTC:trade: stale",
+    "kalshi:BTC:ticker: unavailable",
+    "kalshi:BTC:reference: unavailable",
+    "ETH: current CF Benchmarks reference unavailable",
+    "kalshi:ETH:book: stale",
+    "kalshi:ETH:trade: stale",
+    "kalshi:ETH:ticker: unavailable",
+    "kalshi:ETH:reference: unavailable",
+    "SOL: current CF Benchmarks reference unavailable",
+    "kalshi:SOL:book: stale",
+    "kalshi:SOL:trade: stale",
+    "kalshi:SOL:ticker: unavailable",
+    "kalshi:SOL:reference: unavailable",
+    "kraken:SOL:trade: stale"
+  ]
+}

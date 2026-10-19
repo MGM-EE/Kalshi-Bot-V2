@@ -22,11 +22,13 @@ async def check(seconds):
     ]
     try:
         await asyncio.sleep(seconds)
+        # Connector shutdown intentionally invalidates all books. Sample the
+        # running feeds before cancellation, not the expected stopped state.
+        snapshot = state.snapshot()
     finally:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-    snapshot = state.snapshot()
     blockers = []
     for asset in ASSETS:
         item = snapshot["assets"][asset]
