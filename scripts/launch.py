@@ -13,6 +13,25 @@ import webbrowser
 from pathlib import Path
 
 
+def backend_command(platform=None):
+    command = [
+        sys.executable,
+        "-m",
+        "uvicorn",
+        "backend.app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+    ]
+    if (platform or sys.platform) == "win32":
+        # Uvicorn 0.54 explicitly creates a Proactor loop on Windows, so merely
+        # setting WindowsSelectorEventLoopPolicy in the parent cannot fix its
+        # IOCP accept failures (WinError 64). Select the child loop factory.
+        command += ["--loop", "asyncio:SelectorEventLoop"]
+    return command
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -58,17 +77,11 @@ def main():
                 "Port 8000 is occupied. Stop the existing application first. "
                 "A recorded session needs its own fresh launch."
             ) from None
+    command = backend_command()
+    if "--loop" in command:
+        print("Windows networking compatibility mode is enabled.", flush=True)
     child = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "backend.app.main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "8000",
-        ],
+        command,
         cwd=root,
         env=child_env,
         creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0,

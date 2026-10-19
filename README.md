@@ -38,6 +38,9 @@ If the terminal is already running, opening its launcher again opens the existin
 dashboard. Live-update interruptions use a read-only HTTP backup; fresh dashboard
 updates and fresh exchange data are reported separately. A browser disconnect
 does not pause the backend or change its saved strategy controls.
+Windows launches explicitly use a Selector event loop to avoid the Proactor/IOCP
+local socket accept failure reported as WinError 64. After updating the launcher,
+stop the old backend and launch again to activate this mode.
 
 Public Kalshi REST discovery/books/trades and Kraken WebSocket v2 need no keys.
 For Windows-local setup, use [the credential helper](docs/local_credentials.md):

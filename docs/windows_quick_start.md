@@ -78,6 +78,16 @@ matching program version with recordings; replay checks the backend version.
 
 ## If something goes wrong
 
+- **WinError 64 / Accept failed on 127.0.0.1:8000:** Windows launches now select
+  the Selector networking loop explicitly. This avoids the Proactor/IOCP accept
+  path shown in that error. The launcher prints **Windows networking
+  compatibility mode is enabled** when starting a new backend. Stop the old app
+  with Ctrl+C before updating; opening another icon reuses an existing backend.
+  To update an older installation, download the current build ZIP and replace
+  only `C:\KalshiTerminal\scripts\launch.py` with `scripts\launch.py` from the
+  extracted download, then reopen the desktop icon. No dependency installation,
+  account reset, or credential import is required. Both normal and recorded
+  launchers use this fix. Actual Windows verification remains a PC-side check.
 - **App does not open:** the launcher now keeps startup errors visible. Copy the
   error text; do not delete `data` or reinstall over a saved paper account.
 - **Backup updates:** the app is reachable through ordinary local requests while

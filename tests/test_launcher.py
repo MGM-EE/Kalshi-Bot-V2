@@ -1,13 +1,31 @@
 """Launcher ownership: repeated opens must not create/kill another backend."""
 
+import asyncio
 import io
 import json
 import socket
 import sys
 
 import pytest
+import uvicorn
 
 from scripts import launch
+
+
+def test_windows_server_command_resolves_to_a_selector_loop():
+    command = launch.backend_command("win32")
+    factory_name = command[command.index("--loop") + 1]
+    # Resolve through the installed Uvicorn, rather than just checking a string.
+    factory = uvicorn.Config("backend.app.main:app", loop=factory_name).get_loop_factory()
+    loop = factory()
+    try:
+        assert isinstance(loop, asyncio.SelectorEventLoop)
+    finally:
+        loop.close()
+
+
+def test_non_windows_launch_keeps_uvicorn_default_loop():
+    assert "--loop" not in launch.backend_command("linux")
 
 
 class TestSocket:

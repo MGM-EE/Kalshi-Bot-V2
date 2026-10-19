@@ -7,6 +7,23 @@ Manual paper execution is available; real-money order submission is absent.
 The user has authorized the remaining build phases, one at a time with focused
 checks, status updates, and separate commits.
 
+## Windows local accept failure checkpoint
+
+- User traceback identified WinError 64 in Windows Proactor/IOCP while accepting
+  browser connections on `127.0.0.1:8000`. Windows launches now pass the actual
+  Selector event-loop factory to the child Uvicorn process; normal/recorded
+  sessions share this path. Non-Windows launches retain their default loop.
+- The startup banner confirms compatibility mode. Updating only
+  `scripts/launch.py` activates it after the old backend is stopped and restarted.
+  Accounts, credentials, strategy rules, dependencies and backend source are
+  untouched; the recording code fingerprint is unchanged.
+- **Eight focused tests passed**, including real child-server HTTP/WebSocket
+  accept/disconnect cycles for normal and recorded accounts, graceful shutdown,
+  and exact replay after recorded shutdown. Lint/diff checks passed.
+- Remaining: verify on the user's Windows PC that compatibility mode starts and
+  the reported IOCP accept error no longer recurs. This targets the reported
+  local accept failure; exchange-specific outages still need source diagnostics.
+
 ## Windows recovery and plain-language status checkpoint
 
 - Added a six-card **What's happening?** panel: app connection, local API setup,
