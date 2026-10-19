@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -13,6 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from .connectors.kalshi import Kalshi
 from .connectors.kraken import Kraken
 from .credentials import credential_status
+from .dashboard import DashboardSnapshots
 from .execution.configuration import ExecutionSettings, current, save
 from .execution.models import PaperOrder
 from .execution.paper_broker import IdempotencyConflict
@@ -24,6 +25,7 @@ from .research.analytics import analytics
 from .research.clock import EventClock
 from .research.recorder import Recorder
 from .research.replay import replay
+from .runtime import supervise
 from .settings import ROOT, Settings
 from .state import State, wire
 from .strategy.engine import StrategyEngine
@@ -33,6 +35,7 @@ from .strategy.profiles import METRICS, Profile
 def create_app(settings=None, connect_live=True):
     settings = settings or Settings.from_env()
     state = State(settings.stale_seconds, EventClock())
+    dashboard = DashboardSnapshots(state, interval=settings.stream_seconds)
     features = Features(state)
     state.observers.append(features.observe)
 
@@ -66,14 +69,25 @@ def create_app(settings=None, connect_live=True):
             state.record_event = recorder.event
             state.observers.append(recorder.observe)
         app.state.recorder = recorder
-        tasks = [asyncio.create_task(paper_worker(broker, state, strategy))]
+        workers = {}
+        tasks = []
+
+        def worker(name, operation, invalidate=lambda: None):
+            status = {"state": "starting", "restarts": 0}
+            workers[name] = status
+            task = asyncio.create_task(
+                supervise(state, name, operation, status, invalidate), name=f"supervisor:{name}"
+            )
+            tasks.append(task)
+
+        app.state.workers = workers
+        worker("paper", lambda: paper_worker(broker, state, strategy))
         kalshi = Kalshi(state, settings)
         if connect_live:
-            tasks += [
-                asyncio.create_task(kalshi.run()),
-                asyncio.create_task(Kraken(state).run()),
-                asyncio.create_task(settlement_worker(broker, kalshi, state)),
-            ]
+            kraken = Kraken(state, settings)
+            worker("kalshi", kalshi.run, kalshi.invalidate)
+            worker("kraken", kraken.run, kraken.invalidate)
+            worker("settlement", lambda: settlement_worker(broker, kalshi, state))
         try:
             yield
         finally:
@@ -98,6 +112,7 @@ def create_app(settings=None, connect_live=True):
     app.state.market_state = state
     app.state.paper_broker = None
     app.state.strategy_engine = None
+    app.state.workers = {}
 
     replay_lock = asyncio.Lock()
     recording_directory = (
@@ -165,7 +180,9 @@ def create_app(settings=None, connect_live=True):
 
     @app.get("/api/state")
     async def snapshot():
-        return state.snapshot()
+        return Response(
+            dashboard.frame(), media_type="application/json", headers={"Cache-Control": "no-store"}
+        )
 
     @app.get("/api/credentials/status")
     async def credentials_status():
@@ -183,6 +200,7 @@ def create_app(settings=None, connect_live=True):
             },
             "recorder": recorder.status() if recorder else {"configured": False, "state": "off"},
             "real_order_execution_enabled": False,
+            "workers": app.state.workers,
         }
 
     @app.get("/api/strategy/profiles")
@@ -302,6 +320,7 @@ def create_app(settings=None, connect_live=True):
             "phase": 6,
             "execution_enabled": bool(control.get("enabled") and not control.get("emergency")),
             "paper_api_available": True,
+            "workers": app.state.workers,
             "real_order_execution_enabled": False,
         }
 
@@ -326,12 +345,12 @@ def create_app(settings=None, connect_live=True):
         receiver = asyncio.create_task(wait_for_disconnect())
         try:
             while not receiver.done():
-                value = state.snapshot()
+                value = dashboard.frame()
                 try:
-                    await websocket.send_json(value)
-                except (WebSocketDisconnect, OSError, RuntimeError):
+                    await asyncio.wait_for(websocket.send_text(value), timeout=3)
+                except (WebSocketDisconnect, OSError, RuntimeError, TimeoutError):
                     return
-                await asyncio.wait({receiver}, timeout=0.5)
+                await asyncio.wait({receiver}, timeout=settings.stream_seconds)
             await receiver
         finally:
             receiver.cancel()

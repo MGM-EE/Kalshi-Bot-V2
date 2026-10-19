@@ -1,15 +1,23 @@
 # Architecture and phase boundaries
 
-One asyncio process owns each venue connection. FastAPI exposes read-only
-HTTP state and a coalesced dashboard WebSocket at 2 Hz. Rendering does not
+One asyncio process owns the venue connections and paper engine. FastAPI exposes read-only
+HTTP state and a shared dashboard projection at up to 4 Hz. Rendering does not
 drive data processing. One Kraken Spot v2 connection subscribes to all three
 assets' ticker, trade, and ten-level L2 book feeds. One authenticated Kalshi
 connection subscribes to discovered tickers, CF Benchmarks indices, and global
 lifecycle notifications. Discovery refreshes every 30 seconds and on lifecycle
-events. Without Kalshi credentials, REST books and recent trades are explicitly
-labeled as polling every five seconds.
+events. Discovery, fees, and fallback have independent per-asset schedules and
+bounded concurrency. Without a ready streamed book, REST books and recent trades
+are explicitly labeled polling, with a two-second target adjusted for request time
+and failure backoff. REST books never become a WebSocket delta-chain base.
 
-- `connectors/`: transport, bounded trade history, authentication, source timestamps.
+- `connectors/`: transport, subscription acknowledgement/snapshot deadlines,
+  per-channel repair, bounded trade history, authentication, source timestamps.
+- `runtime.py`: restarts workers after unexpected exit/failure with bounded backoff.
+  Connector watchdogs detect silent feeds; this does not move synchronous engine/SQL
+  work into separate processes or detect arbitrary event-loop blocking.
+- `dashboard.py`: one versioned, encoded read projection per interval shared by
+  streams and HTTP fallback; slow stream sends have a deadline.
 - `markets/`: conservative rule normalization, current/upcoming selection,
   complementary Kalshi books, Kraken decimal-preserving CRC32 validation.
 - `state.py`: bounded current state, separate channel health, clock-drift/stale states.
@@ -19,8 +27,11 @@ labeled as polling every five seconds.
 - `tests/`: deterministic synthetic protocol fixtures and local WebSocket transport
   tests; `scripts/live_check.py` separately checks actual feeds.
 
-Failed checksums, sequence gaps, and reconnects invalidate books and request new
-snapshots by reconnecting. Duplicate trade IDs are bounded and ignored. Kraken
+Failed checksums, sequence gaps, and reconnects invalidate affected books. Kraken
+rebuilds its session; Kalshi requests fresh snapshots on the affected subscription,
+then escalates failed repair to resubscription/reconnection. Normal Kalshi market
+changes update subscriptions without reconnecting the CF feed. Duplicate trade IDs
+are bounded and ignored. Kraken
 out-of-order trades are discarded; out-of-order books require a new snapshot.
 Memory is bounded to 100 displayed trades, 2,000 deduplication IDs per active
 market, current books, and 60 connection events. Old market buffers are removed

@@ -17,7 +17,15 @@ class Settings:
     private_key_path: str = ""
     stale_seconds: float = 15
     discovery_seconds: float = 30
-    rest_seconds: float = 5
+    rest_seconds: float = 2
+    subscription_timeout_seconds: float = 5
+    snapshot_verify_seconds: float = 5
+    reference_stale_seconds: float = 3
+    channel_retry_seconds: float = 30
+    rest_concurrency: int = 3
+    rest_request_timeout_seconds: float = 8
+    fees_seconds: float = 30
+    stream_seconds: float = 0.25
     paper_database_path: str = str(ROOT / "data" / "paper.sqlite3")
     paper_config_path: str = str(ROOT / "config" / "paper.json")
     recording_path: str = ""

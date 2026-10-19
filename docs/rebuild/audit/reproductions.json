@@ -1,0 +1,13 @@
+{
+  "missing_required_channel": {
+    "stream_live": true,
+    "socket_health": "live",
+    "book_valid": false,
+    "fallback_requests": 0,
+    "session_still_running": true
+  },
+  "book_valid_after_cf_subscription_error": {
+    "BTC": false,
+    "ETH": false
+  }
+}

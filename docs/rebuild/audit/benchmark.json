@@ -1,0 +1,14 @@
+{
+  "fixture": "DETERMINISTIC SYNTHETIC STRESS ONLY",
+  "events": 10000,
+  "seconds": 3.5384758499999975,
+  "source_pair_p95_ms": 0.028703999987556017,
+  "snapshot_all_assets_p95_ms": 14.59022200000959,
+  "traced_peak_memory_mib": null,
+  "allocation_tracing": false,
+  "retained_trades": {
+    "BTC": 3334,
+    "ETH": 3333,
+    "SOL": 3333
+  }
+}

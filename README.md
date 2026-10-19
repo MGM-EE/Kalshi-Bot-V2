@@ -7,6 +7,11 @@ New accounts start paused; enable a selected profile explicitly in the UI.
 Saved controls persist across restarts; inspect the selected profile and pause state.
 No real-money order transport or mock runtime feed exists.
 
+The [connectivity update](docs/connectivity_update.md) adds bounded browser recovery,
+per-feed subscription checks, independent Kalshi REST workers, and automatic
+worker restart. See the [rebuild blueprint](docs/rebuild/blueprint.md) for the
+longer-term architecture and the [original audit](docs/rebuild/verification.md).
+
 ## Run
 
 **Windows recovery / first-time setup:** follow the [simple Windows guide](docs/windows_quick_start.md).
@@ -81,10 +86,11 @@ period separation, audit exports and limitations.
 ```bash
 .venv/bin/python -m pytest -q
 npm run typecheck
+node tests/ui_transport.cjs
 .venv/bin/python scripts/live_check.py --seconds 30
 ```
 
-The first two commands are deterministic. The opt-in live check exits **2**
+The first three commands are deterministic. The opt-in live check exits **2**
 for missing data, incomplete references, or unavailable streaming; a working
 REST fallback does not satisfy authenticated streaming acceptance.
 
